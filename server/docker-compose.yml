@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: golang_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: golang_root
+      MYSQL_DATABASE: golang_db
+      MYSQL_USER: golang_user
+      MYSQL_PASSWORD: golang_pw
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_isbank_data:/var/lib/mysql
+      - ./initdb.d:/docker-entrypoint-initdb.d
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost", "-u", "${MYSQL_USER}", "-p${MYSQL_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mysql_isbank_data:
