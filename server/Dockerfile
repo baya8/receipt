@@ -1,5 +1,5 @@
 # ビルドステージ: Goのビルド環境
-FROM golang:1.22-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 # アプリケーションの作業ディレクトリを設定
 WORKDIR /app
@@ -10,23 +10,19 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 # アプリケーションのソースコードをコピー
-# serverディレクトリ内のコードをビルド対象とする
-COPY ./server ./server
-COPY ./handlers ./handlers
-COPY ./message ./message
+# ビルドコンテキスト (serverディレクトリ) の内容をすべてコピー
+COPY . .
 
 # アプリケーションをビルド
 # CGO_ENABLED=0: CGOを無効にし、静的リンクバイナリを生成
 # -ldflags="-s -w": デバッグ情報を削除し、バイナリサイズを削減
-RUN CGO_ENABLED=0 GOOS=linux go build -a -ldflags="-s -w" -o /app/receipt-server ./server/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -a -ldflags="-s -w" -o /app/receipt-server ./main.go
 
 # ランタイムステージ: 軽量なAlpine Linuxイメージ
-FROM alpine:latest
-
-# ca-certificates をインストール (HTTPS通信などに必要)
-RUN apk --no-cache add ca-certificates
+FROM gcr.io/distroless/static-debian11 AS final
 
 # ビルドステージからコンパイル済みバイナリをコピー
+WORKDIR /
 COPY --from=builder /app/receipt-server /receipt-server
 
 # アプリケーションがリッスンするポート (main.goで指定したポートと一致させる)

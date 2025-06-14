@@ -1,0 +1,5 @@
+.git
+.gitignore
+README.md
+# その他、ビルドに不要なファイルやディレクトリ
+restClient/
