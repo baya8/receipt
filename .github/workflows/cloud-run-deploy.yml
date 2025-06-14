@@ -8,7 +8,7 @@ on:
 env:
   GCP_PROJECT_ID: uni10kuu
   GAR_LOCATION: asia-northeast1 # Artifact Registryのリージョン
-  GAR_REPOSITORY: receipt-images # ★修正: Artifact Registryのリポジトリ名を指定 (例: receipt-images)
+  GAR_REPOSITORY: receipt # ★修正: Artifact Registryのリポジトリ名を指定 (例: receipt-images)
   SERVICE_NAME: receipt # Cloud Runのサービス名
   REGION: asia-northeast1 # Cloud Runのリージョン
 
