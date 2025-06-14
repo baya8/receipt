@@ -8,7 +8,7 @@ on:
 env:
   GCP_PROJECT_ID: uni10kuu
   GAR_LOCATION: asia-northeast1 # Artifact Registryのリージョン
-  SERVICE_NAME: receipt-api # Cloud Runのサービス名
+  SERVICE_NAME: receipt # Cloud Runのサービス名
   REGION: asia-northeast1 # Cloud Runのリージョン
 
 jobs:
