@@ -28,8 +28,20 @@ jobs:
       - name: Configure Docker
         run: gcloud auth configure-docker ${{ secrets.GAR_DOMAIN }}-docker.pkg.dev
 
+      - name: Create .env file for server
+        run: |
+          echo "DB_USER=${{ secrets.CLOUDSQL_USER }}" > server/.env
+          echo "DB_PASS=${{ secrets.CLOUDSQL_PASS }}" >> server/.env
+          echo "DB_NAME=${{ secrets.CLOUDSQL_NAME }}" >> server/.env
+          echo "DB_HOST=${{ secrets.CLOUDSQL_HOST }}" >> server/.env
+          echo "DB_PORT=${{ secrets.CLOUDSQL_PORT }}" >> server/.env
+          echo "GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }}" >> server/.env
+        shell: bash
+
       - name: Build and push Docker image
         run: |
           docker build -t ${{ secrets.GAR_REPOSITORY }}:${{ github.sha }} -f server/Dockerfile server
-          docker push ${{ secrets.GAR_REPOSITORY }}:${{ github.sha }}:latest
+          docker tag ${{ secrets.GAR_REPOSITORY }}:${{ github.sha }} ${{ secrets.GAR_REPOSITORY }}:latest
+          docker push ${{ secrets.GAR_REPOSITORY }}:${{ github.sha }}
+          docker push ${{ secrets.GAR_REPOSITORY }}:latest
           echo "Image pushed: ${{ secrets.GAR_REPOSITORY }}:${{ github.sha }}"
