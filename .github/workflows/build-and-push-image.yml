@@ -9,8 +9,12 @@ jobs:
   build-and-deploy:
     name: Build and Deploy
     runs-on: ubuntu-latest
+    environment: receipt # GitHub Environment 'receipt' を使用
     permissions:
       contents: 'read' # コードのチェックアウトに必要
+
+    env:
+      SERVICE_NAME: receipt-image # イメージ名 (Cloud Runのサービス名と合わせる)
 
     steps:
       - name: Checkout code
@@ -26,7 +30,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Configure Docker
-        run: gcloud auth configure-docker ${{ secrets.GAR_DOMAIN }}-docker.pkg.dev
+        run: gcloud auth configure-docker ${{ vars.GAR_DNS }} # Environment変数 GAR_DNS を使用
 
       - name: Create .env file for server
         run: |
@@ -40,8 +44,18 @@ jobs:
 
       - name: Build and push Docker image
         run: |
-          docker build -t ${{ secrets.GAR_REPOSITORY }}:${{ github.sha }} -f server/Dockerfile server
-          docker tag ${{ secrets.GAR_REPOSITORY }}:${{ github.sha }} ${{ secrets.GAR_REPOSITORY }}:latest
-          docker push ${{ secrets.GAR_REPOSITORY }}:${{ github.sha }}
-          docker push ${{ secrets.GAR_REPOSITORY }}:latest
-          echo "Image pushed: ${{ secrets.GAR_REPOSITORY }}:${{ github.sha }}"
+          # Construct the full image path using Environment variable GAR_FULL_PATH and job env variable SERVICE_NAME
+          # This will result in something like: asia-northeast1-docker.pkg.dev/uni10kuu/receipt/receipt
+          IMAGE_FULL_PATH="${{ vars.GAR_FULL_PATH }}/${{ env.SERVICE_NAME }}"
+          TAG_SHA="${{ github.sha }}"
+          TAG_LATEST="latest"
+
+          echo "Building image with tags: ${TAG_SHA} and ${TAG_LATEST}"
+          # Build with both SHA tag and latest tag using the full GAR path
+          docker build -t "${IMAGE_FULL_PATH}:${TAG_SHA}" -t "${IMAGE_FULL_PATH}:${TAG_LATEST}" -f server/Dockerfile server
+
+          echo "Pushing image with tags: ${TAG_SHA} and ${TAG_LATEST}"
+          # Push both tags
+          docker push "${IMAGE_FULL_PATH}:${TAG_SHA}"
+          docker push "${IMAGE_FULL_PATH}:${TAG_LATEST}"
+          echo "Image pushed: ${IMAGE_FULL_PATH}:${TAG_SHA} and ${IMAGE_FULL_PATH}:${TAG_LATEST}"
