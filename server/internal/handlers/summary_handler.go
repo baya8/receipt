@@ -23,6 +23,12 @@ type MonthlySummaryResponse struct {
 	IsSettled  bool            `json:"is_settled"`
 }
 
+type CreateSettlementInput struct {
+	GroupID uint `json:"group_id" binding:"required"`
+	Year    int  `json:"year" binding:"required"`
+	Month   int  `json:"month" binding:"required"`
+}
+
 // GetMonthlySummary 月次サマリーの取得
 func GetMonthlySummary(c *gin.Context) {
 	groupIDStr := c.Query("group_id")
@@ -48,6 +54,10 @@ func GetMonthlySummary(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Group not found"})
 		return
 	}
+
+	// 精算済みかチェック
+	var settlement models.Settlement
+	isSettled := config.DB.Where("group_id = ? AND year = ? AND month = ?", groupID, year, month).First(&settlement).Error == nil
 
 	// 指定期間のレシートを取得
 	var receipts []models.Receipt
@@ -96,6 +106,57 @@ func GetMonthlySummary(c *gin.Context) {
 	c.JSON(http.StatusOK, MonthlySummaryResponse{
 		TotalSpent: totalSpent,
 		Members:    memberSummaries,
-		IsSettled:  false, // TODO: 精算テーブルを作成して状態を管理する
+		IsSettled:  isSettled,
 	})
+}
+
+// CreateSettlement 精算の確定
+func CreateSettlement(c *gin.Context) {
+	var input CreateSettlementInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	userID, _ := c.Get("userID")
+
+	// 既に精算済みかチェック
+	var existing models.Settlement
+	if config.DB.Where("group_id = ? AND year = ? AND month = ?", input.GroupID, input.Year, input.Month).First(&existing).Error == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "This month is already settled"})
+		return
+	}
+
+	settlement := models.Settlement{
+		GroupID:   input.GroupID,
+		Year:      input.Year,
+		Month:     input.Month,
+		SettledBy: userID.(uint),
+	}
+
+	// トランザクションで処理
+	tx := config.DB.Begin()
+
+	if err := tx.Create(&settlement).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create settlement"})
+		return
+	}
+
+	// 該当月のレシートをすべて精算済みに更新
+	startDate := time.Date(input.Year, time.Month(input.Month), 1, 0, 0, 0, 0, time.Local)
+	endDate := startDate.AddDate(0, 1, 0)
+	now := time.Now()
+
+	if err := tx.Model(&models.Receipt{}).
+		Where("group_id = ? AND date >= ? AND date < ? AND settled_at IS NULL", input.GroupID, startDate, endDate).
+		Update("settled_at", now).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update receipts"})
+		return
+	}
+
+	tx.Commit()
+
+	c.JSON(http.StatusOK, settlement)
 }

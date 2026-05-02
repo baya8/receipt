@@ -47,3 +47,16 @@ type Receipt struct {
 	User  User  `gorm:"foreignKey:UserID" json:"-"`
 	Payer User  `gorm:"foreignKey:PayerID" json:"payer"`
 }
+
+// Settlement 精算情報
+type Settlement struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	GroupID   uint      `gorm:"not null" json:"group_id"`
+	Year      int       `gorm:"not null" json:"year"`
+	Month     int       `gorm:"not null" json:"month"`
+	SettledBy uint      `gorm:"not null" json:"settled_by"`
+	CreatedAt time.Time `json:"created_at"`
+
+	Group     Group     `gorm:"foreignKey:GroupID" json:"-"`
+	SettledByUser User `gorm:"foreignKey:SettledBy" json:"settled_by_user"`
+}

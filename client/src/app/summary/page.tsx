@@ -27,6 +27,19 @@ export default function Summary() {
   const year = date.getFullYear();
   const month = date.getMonth() + 1;
 
+  const fetchSummary = async () => {
+    setLoading(true);
+    try {
+      // 現在はgroup_id=1を固定で使用
+      const data = await apiRequest(`/api/summary?group_id=1&year=${year}&month=${month}`);
+      setSummary(data);
+    } catch (err) {
+      console.error("Failed to fetch summary:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) {
@@ -34,18 +47,6 @@ export default function Summary() {
       return;
     }
 
-    async function fetchSummary() {
-      setLoading(true);
-      try {
-        // 現在はgroup_id=1を固定で使用
-        const data = await apiRequest(`/api/summary?group_id=1&year=${year}&month=${month}`);
-        setSummary(data);
-      } catch (err) {
-        console.error("Failed to fetch summary:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
     fetchSummary();
   }, [year, month, router]);
 
@@ -53,6 +54,26 @@ export default function Summary() {
     const newDate = new Date(date);
     newDate.setMonth(newDate.getMonth() + offset);
     setDate(newDate);
+  };
+
+  const handleSettle = async () => {
+    if (summary?.is_settled) return;
+    if (!confirm(`${year}年${month}月の精算を完了としてマークしますか？`)) return;
+
+    try {
+      await apiRequest("/api/settle", {
+        method: "POST",
+        body: JSON.stringify({
+          group_id: 1, // 現在は1固定
+          year,
+          month,
+        }),
+      });
+      fetchSummary();
+    } catch (err) {
+      console.error("Failed to settle:", err);
+      alert("精算に失敗しました。");
+    }
   };
 
   const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "{}") : {};
@@ -107,11 +128,14 @@ export default function Summary() {
 
         {/* Status Toggle */}
         <section>
-          <button className={`w-full p-4 rounded-2xl flex flex-col items-start gap-1 border-2 transition-all ${
-            summary?.is_settled 
-            ? "bg-green-50 border-green-200 text-green-700" 
-            : "bg-white border-gray-100 text-gray-400 shadow-sm"
-          }`}>
+          <button 
+            onClick={handleSettle}
+            className={`w-full p-4 rounded-2xl flex flex-col items-start gap-1 border-2 transition-all ${
+              summary?.is_settled 
+              ? "bg-green-50 border-green-200 text-green-700" 
+              : "bg-white border-gray-100 text-gray-400 shadow-sm hover:border-blue-200 active:scale-95"
+            }`}
+          >
             <div className="flex items-center justify-between w-full">
               <div className="flex items-center gap-3">
                 {summary?.is_settled ? <CheckCircle2 className="text-green-500" /> : <Circle />}

@@ -50,6 +50,7 @@ func main() {
 		api.POST("/groups", handlers.CreateGroup)
 
 		api.GET("/summary", handlers.GetMonthlySummary)
+		api.POST("/settle", handlers.CreateSettlement)
 	}
 
 	// ヘルスチェック
