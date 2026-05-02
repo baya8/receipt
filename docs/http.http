@@ -1,0 +1,37 @@
+
+# ユーザ登録API
+curl -X POST http://localhost:8080/auth/register \
+     -H "Content-Type: application/json" \
+     -d '{
+       "email": "test@example.com",
+       "password": "password123",
+       "nickname": "たろう"
+     }'
+
+# ログインAPI
+curl -X POST http://localhost:8080/auth/login \
+     -H "Content-Type: application/json" \
+     -d '{
+       "email": "test@example.com",
+       "password": "password123"
+     }'
+
+# レシート登録例 (group_id=1, payer_id=1 と仮定)
+curl -X POST http://localhost:8080/api/receipts \
+     -H "Content-Type: application/json" \
+     -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NzczOTI4MDAsInVzZXJfaWQiOjF9.L4GCre98BaasCz5R7ee1E59VNxIJEh88su10kfNh6Aw" \
+     -d '{
+       "group_id": 1,
+       "date": "2024-04-27T10:00:00Z",
+       "shop": "スーパーABC",
+       "item": "食材",
+       "amount": 2500,
+       "payer_id": 1,
+       "payment_method": "折半"
+     }'
+
+# グループ登録API
+curl -X POST http://localhost:8080/api/groups \
+     -H "Content-Type: application/json" \
+     -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NzczOTI4MDAsInVzZXJfaWQiOjF9.L4GCre98BaasCz5R7ee1E59VNxIJEh88su10kfNh6Aw" \
+     -d '{"name": "我が家"}'
