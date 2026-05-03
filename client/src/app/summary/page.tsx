@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, CheckCircle2, Circle } from "lucide-react";
+import { ChevronLeft, ChevronRight, CheckCircle2, Circle, PlusCircle } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 interface MemberSummary {
   user_id: number;
@@ -16,29 +17,23 @@ interface SummaryData {
   total_spent: number;
   members: MemberSummary[];
   is_settled: boolean;
+  settled_at: string | null;
+}
+
+interface Group {
+  id: number;
+  name: string;
 }
 
 export default function Summary() {
   const [date, setDate] = useState(new Date());
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [groups, setGroups] = useState<Group[]>([]);
   const router = useRouter();
 
   const year = date.getFullYear();
   const month = date.getMonth() + 1;
-
-  const fetchSummary = async () => {
-    setLoading(true);
-    try {
-      // 現在はgroup_id=1を固定で使用
-      const data = await apiRequest(`/api/summary?group_id=1&year=${year}&month=${month}`);
-      setSummary(data);
-    } catch (err) {
-      console.error("Failed to fetch summary:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -47,7 +42,23 @@ export default function Summary() {
       return;
     }
 
-    fetchSummary();
+    async function fetchData() {
+      setLoading(true);
+      try {
+        const myGroups = await apiRequest("/api/groups");
+        setGroups(myGroups);
+
+        if (myGroups.length > 0) {
+          const data = await apiRequest(`/api/summary?group_id=${myGroups[0].id}&year=${year}&month=${month}`);
+          setSummary(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch summary:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
   }, [year, month, router]);
 
   const changeMonth = (offset: number) => {
@@ -57,43 +68,67 @@ export default function Summary() {
   };
 
   const handleSettle = async () => {
-    if (summary?.is_settled) return;
+    if (summary?.is_settled || groups.length === 0) return;
     if (!confirm(`${year}年${month}月の精算を完了としてマークしますか？`)) return;
 
     try {
       await apiRequest("/api/settle", {
         method: "POST",
         body: JSON.stringify({
-          group_id: 1, // 現在は1固定
+          group_id: groups[0].id,
           year,
           month,
         }),
       });
-      fetchSummary();
+      // リロード
+      const data = await apiRequest(`/api/summary?group_id=${groups[0].id}&year=${year}&month=${month}`);
+      setSummary(data);
     } catch (err) {
       console.error("Failed to settle:", err);
-      alert("精算に失敗しました。");
+      if (!(err instanceof Error && err.name === "ConnectionError")) {
+        alert("精算に失敗しました。");
+      }
     }
   };
+
+  if (loading) return <div className="p-8 text-center text-gray-400">読み込み中...</div>;
+
+  if (groups.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[80vh] p-8 text-center">
+        <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-6">
+          <PlusCircle size={40} className="text-blue-500" />
+        </div>
+        <h2 className="text-xl font-bold text-gray-900 mb-2">グループがありません</h2>
+        <p className="text-gray-500 mb-8">
+          精算機能を利用するには、まずグループを作成してください。
+        </p>
+        <Link 
+          href="/profile"
+          className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-blue-100"
+        >
+          設定画面へ
+        </Link>
+      </div>
+    );
+  }
 
   const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "{}") : {};
   const mySummary = summary?.members.find(m => m.user_id === user.id);
   const otherSummary = summary?.members.find(m => m.user_id !== user.id);
 
-  // 自分が相手に支払うべき額 (負担額 - 支払済額)
-  // 正なら支払いが必要、負ならもらう権利がある
   const balance = mySummary ? mySummary.share - mySummary.paid : 0;
-
-  if (loading) return <div className="p-8 text-center text-gray-400">読み込み中...</div>;
 
   return (
     <div className="pb-10">
-      {/* Header with Month Selector */}
       <header className="p-4 border-b border-gray-100 bg-white sticky top-0 z-10 flex justify-between items-center">
         <button onClick={() => changeMonth(-1)} className="p-2 hover:bg-gray-100 rounded-full">
           <ChevronLeft size={20} />
         </button>
-        <h1 className="text-lg font-bold text-gray-800">{year}年{month}月</h1>
+        <div className="text-center">
+          <h1 className="text-lg font-bold text-gray-800">{year}年{month}月</h1>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{groups[0].name}</p>
+        </div>
         <button onClick={() => changeMonth(1)} className="p-2 hover:bg-gray-100 rounded-full">
           <ChevronRight size={20} />
         </button>
@@ -139,7 +174,14 @@ export default function Summary() {
             <div className="flex items-center justify-between w-full">
               <div className="flex items-center gap-3">
                 {summary?.is_settled ? <CheckCircle2 className="text-green-500" /> : <Circle />}
-                <span className="font-bold">{summary?.is_settled ? "精算済み" : "未精算（完了したらタップ）"}</span>
+                <div className="text-left">
+                  <p className="font-bold">{summary?.is_settled ? "精算済み" : "未精算（完了したらタップ）"}</p>
+                  {summary?.is_settled && summary.settled_at && (
+                    <p className="text-[10px] text-green-600 font-medium">
+                      {new Date(summary.settled_at).toLocaleString()} に精算
+                    </p>
+                  )}
+                </div>
               </div>
               {summary?.is_settled && (
                 <span className="text-[10px] font-bold bg-green-200/50 px-2 py-0.5 rounded text-green-600">

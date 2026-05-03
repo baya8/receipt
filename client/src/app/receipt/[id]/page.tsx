@@ -37,7 +37,10 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
         setReceipt(data);
       } catch (err) {
         console.error("Failed to fetch receipt:", err);
-        alert("データの取得に失敗しました");
+        // ConnectionErrorはApiProviderがハンドルするため、ここではそれ以外のエラーのみアラートを出す
+        if (!(err instanceof Error && err.name === "ConnectionError")) {
+          alert("データの取得に失敗しました");
+        }
       } finally {
         setLoading(false);
       }
@@ -62,7 +65,9 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
       router.push("/");
     } catch (err) {
       console.error("Failed to update receipt:", err);
-      alert("更新に失敗しました");
+      if (!(err instanceof Error && err.name === "ConnectionError")) {
+        alert("更新に失敗しました");
+      }
     } finally {
       setSaving(false);
     }
@@ -78,7 +83,9 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
       router.push("/");
     } catch (err) {
       console.error("Failed to delete receipt:", err);
-      alert("削除に失敗しました");
+      if (!(err instanceof Error && err.name === "ConnectionError")) {
+        alert("削除に失敗しました");
+      }
     }
   };
 

@@ -21,10 +21,12 @@ type User struct {
 type Group struct {
 	ID        uint           `gorm:"primaryKey" json:"id"`
 	Name      string         `gorm:"type:varchar(100);not null" json:"name"`
+	OwnerID   uint           `gorm:"not null" json:"owner_id"` // グループ管理者（作成者）
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 	Members   []User         `gorm:"many2many:group_members;" json:"members"`
+	Owner     User           `gorm:"foreignKey:OwnerID" json:"-"`
 }
 
 // Receipt レシート明細

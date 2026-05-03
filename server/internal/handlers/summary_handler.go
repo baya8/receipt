@@ -21,6 +21,7 @@ type MonthlySummaryResponse struct {
 	TotalSpent int             `json:"total_spent"`
 	Members    []MemberSummary `json:"members"`
 	IsSettled  bool            `json:"is_settled"`
+	SettledAt  *time.Time      `json:"settled_at"`
 }
 
 type CreateSettlementInput struct {
@@ -57,7 +58,12 @@ func GetMonthlySummary(c *gin.Context) {
 
 	// 精算済みかチェック
 	var settlement models.Settlement
-	isSettled := config.DB.Where("group_id = ? AND year = ? AND month = ?", groupID, year, month).First(&settlement).Error == nil
+	err := config.DB.Where("group_id = ? AND year = ? AND month = ?", groupID, year, month).First(&settlement).Error
+	isSettled := err == nil
+	var settledAt *time.Time
+	if isSettled {
+		settledAt = &settlement.CreatedAt
+	}
 
 	// 指定期間のレシートを取得
 	var receipts []models.Receipt
@@ -107,6 +113,7 @@ func GetMonthlySummary(c *gin.Context) {
 		TotalSpent: totalSpent,
 		Members:    memberSummaries,
 		IsSettled:  isSettled,
+		SettledAt:  settledAt,
 	})
 }
 

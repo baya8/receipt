@@ -2,6 +2,8 @@ package middleware
 
 import (
 	"net/http"
+	"receipt/server/config"
+	"receipt/server/internal/models"
 	"receipt/server/internal/utils"
 	"strings"
 
@@ -45,6 +47,15 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		// ユーザーIDをコンテキストに保存
 		userID := uint(claims["user_id"].(float64))
+
+		// データベースにユーザーが存在するか確認
+		var user models.User
+		if err := config.DB.First(&user, userID).Error; err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User no longer exists"})
+			c.Abort()
+			return
+		}
+
 		c.Set("userID", userID)
 		c.Next()
 	}

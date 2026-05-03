@@ -76,3 +76,61 @@ func Login(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"token": token, "user": user})
 }
+
+// GetMe 現在のユーザー情報取得
+func GetMe(c *gin.Context) {
+	userID, _ := c.Get("userID")
+
+	var user models.User
+	if err := config.DB.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, user)
+}
+
+type UpdateMeInput struct {
+	Email    string `json:"email"`
+	Nickname string `json:"nickname"`
+	Password string `json:"password"`
+}
+
+// UpdateMe ユーザー情報更新
+func UpdateMe(c *gin.Context) {
+	userID, _ := c.Get("userID")
+
+	var input UpdateMeInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var user models.User
+	if err := config.DB.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	if input.Email != "" {
+		user.Email = input.Email
+	}
+	if input.Nickname != "" {
+		user.Nickname = input.Nickname
+	}
+	if input.Password != "" {
+		hashedPassword, err := utils.HashPassword(input.Password)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+			return
+		}
+		user.PasswordHash = hashedPassword
+	}
+
+	if err := config.DB.Save(&user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
+		return
+	}
+
+	c.JSON(http.StatusOK, user)
+}

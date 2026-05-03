@@ -1,9 +1,15 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Camera, Save, Loader2 } from "lucide-react";
+import { Camera, Save, Loader2, PlusCircle } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+
+interface Group {
+  id: number;
+  name: string;
+}
 
 export default function Register() {
   const router = useRouter();
@@ -13,17 +19,32 @@ export default function Register() {
     shop: "",
     item: "",
     amount: 0,
-    payer_id: 0, // 後でログインユーザーIDにセット
+    payer_id: 0,
     payment_method: "折半",
   });
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [fetchingGroups, setFetchingGroups] = useState(true);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) {
       router.push("/login");
+      return;
     }
+
+    async function fetchGroups() {
+      try {
+        const myGroups = await apiRequest("/api/groups");
+        setGroups(myGroups);
+      } catch (err) {
+        console.error("Failed to fetch groups:", err);
+      } finally {
+        setFetchingGroups(false);
+      }
+    }
+    fetchGroups();
   }, [router]);
 
   const handleCameraClick = () => {
@@ -68,13 +89,14 @@ export default function Register() {
       alert("解析に失敗しました。手動で入力してください。");
     } finally {
       setAnalyzing(false);
-      // 同じファイルを再度選択できるようにリセット
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (groups.length === 0) return;
+    
     setLoading(true);
     try {
       const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -83,8 +105,8 @@ export default function Register() {
         body: JSON.stringify({
           ...formData,
           amount: Number(formData.amount),
-          group_id: 1, // 固定
-          payer_id: user.id || 1,
+          group_id: groups[0].id,
+          payer_id: user.id || 0,
           date: new Date(formData.date).toISOString(),
         }),
       });
@@ -97,10 +119,35 @@ export default function Register() {
     }
   };
 
+  if (fetchingGroups) return <div className="p-8 text-center text-gray-400">読み込み中...</div>;
+
+  if (groups.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[80vh] p-8 text-center">
+        <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-6">
+          <PlusCircle size={40} className="text-blue-500" />
+        </div>
+        <h2 className="text-xl font-bold text-gray-900 mb-2">グループがありません</h2>
+        <p className="text-gray-500 mb-8">
+          レシートを登録するには、まずグループを作成してください。
+        </p>
+        <Link 
+          href="/profile"
+          className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-blue-100"
+        >
+          設定画面へ
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="pb-10">
-      <header className="p-4 border-b border-gray-100">
+      <header className="p-4 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-10">
         <h1 className="text-xl font-bold text-gray-800">レシート登録</h1>
+        <div className="text-[10px] font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded">
+          {groups[0].name}
+        </div>
       </header>
 
       <div className="p-6 space-y-8">

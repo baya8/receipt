@@ -33,6 +33,8 @@ func main() {
 	{
 		auth.POST("/register", handlers.Register)
 		auth.POST("/login", handlers.Login)
+		auth.GET("/me", middleware.AuthMiddleware(), handlers.GetMe)
+		auth.PUT("/me", middleware.AuthMiddleware(), handlers.UpdateMe)
 	}
 
 	// レシート関連（認証必須）
@@ -48,6 +50,8 @@ func main() {
 
 		api.GET("/groups", handlers.GetMyGroups)
 		api.POST("/groups", handlers.CreateGroup)
+		api.POST("/groups/:id/invite", handlers.InviteMember)
+		api.DELETE("/groups/:id/members/:userId", handlers.RemoveMember)
 
 		api.GET("/summary", handlers.GetMonthlySummary)
 		api.POST("/settle", handlers.CreateSettlement)
