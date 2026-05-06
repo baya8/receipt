@@ -18,16 +18,16 @@ type MemberSummary struct {
 }
 
 type MonthlySummaryResponse struct {
-	TotalSpent int             `json:"total_spent"`
-	Members    []MemberSummary `json:"members"`
-	IsSettled  bool            `json:"is_settled"`
-	SettledAt  *time.Time      `json:"settled_at"`
+	TotalSpent  int                 `json:"total_spent"`
+	Members     []MemberSummary     `json:"members"`
+	Settlements []models.Settlement `json:"settlements"`
 }
 
 type CreateSettlementInput struct {
 	GroupID uint `json:"group_id" binding:"required"`
 	Year    int  `json:"year" binding:"required"`
 	Month   int  `json:"month" binding:"required"`
+	Amount  int  `json:"amount" binding:"required"`
 }
 
 // GetMonthlySummary 月次サマリーの取得
@@ -45,10 +45,6 @@ func GetMonthlySummary(c *gin.Context) {
 	year, _ := strconv.Atoi(yearStr)
 	month, _ := strconv.Atoi(monthStr)
 
-	// 指定された月の開始日と終了日を計算
-	startDate := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.Local)
-	endDate := startDate.AddDate(0, 1, 0)
-
 	// グループメンバーの取得
 	var group models.Group
 	if err := config.DB.Preload("Members").First(&group, groupID).Error; err != nil {
@@ -56,18 +52,16 @@ func GetMonthlySummary(c *gin.Context) {
 		return
 	}
 
-	// 精算済みかチェック
-	var settlement models.Settlement
-	err := config.DB.Where("group_id = ? AND year = ? AND month = ?", groupID, year, month).First(&settlement).Error
-	isSettled := err == nil
-	var settledAt *time.Time
-	if isSettled {
-		settledAt = &settlement.CreatedAt
-	}
+	// 精算履歴の取得
+	var settlements []models.Settlement
+	config.DB.Where("group_id = ? AND year = ? AND month = ?", groupID, year, month).
+		Preload("SettledByUser").
+		Order("created_at desc").
+		Find(&settlements)
 
-	// 指定期間のレシートを取得
+	// 指定された精算月のレシートを取得
 	var receipts []models.Receipt
-	config.DB.Where("group_id = ? AND date >= ? AND date < ?", groupID, startDate, endDate).Find(&receipts)
+	config.DB.Where("group_id = ? AND settlement_year = ? AND settlement_month = ?", groupID, year, month).Find(&receipts)
 
 	// 集計用マップ
 	paidMap := make(map[uint]int)
@@ -110,14 +104,13 @@ func GetMonthlySummary(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, MonthlySummaryResponse{
-		TotalSpent: totalSpent,
-		Members:    memberSummaries,
-		IsSettled:  isSettled,
-		SettledAt:  settledAt,
+		TotalSpent:  totalSpent,
+		Members:     memberSummaries,
+		Settlements: settlements,
 	})
 }
 
-// CreateSettlement 精算の確定
+// CreateSettlement 精算の記録
 func CreateSettlement(c *gin.Context) {
 	var input CreateSettlementInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -127,17 +120,14 @@ func CreateSettlement(c *gin.Context) {
 
 	userID, _ := c.Get("userID")
 
-	// 既に精算済みかチェック
-	var existing models.Settlement
-	if config.DB.Where("group_id = ? AND year = ? AND month = ?", input.GroupID, input.Year, input.Month).First(&existing).Error == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "This month is already settled"})
-		return
-	}
+	// 今回はフロントエンドでの制限を主とし、バックエンドでは単純な記録を行う
+	// (実運用ではより厳密な残高チェックが必要)
 
 	settlement := models.Settlement{
 		GroupID:   input.GroupID,
 		Year:      input.Year,
 		Month:     input.Month,
+		Amount:    input.Amount,
 		SettledBy: userID.(uint),
 	}
 
@@ -150,13 +140,10 @@ func CreateSettlement(c *gin.Context) {
 		return
 	}
 
-	// 該当月のレシートをすべて精算済みに更新
-	startDate := time.Date(input.Year, time.Month(input.Month), 1, 0, 0, 0, 0, time.Local)
-	endDate := startDate.AddDate(0, 1, 0)
+	// 該当精算月のレシートをすべて精算済みに更新（部分精算でも一旦「精算アクションがあった」としてマーク）
 	now := time.Now()
-
 	if err := tx.Model(&models.Receipt{}).
-		Where("group_id = ? AND date >= ? AND date < ? AND settled_at IS NULL", input.GroupID, startDate, endDate).
+		Where("group_id = ? AND settlement_year = ? AND settlement_month = ? AND settled_at IS NULL", input.GroupID, input.Year, input.Month).
 		Update("settled_at", now).Error; err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update receipts"})

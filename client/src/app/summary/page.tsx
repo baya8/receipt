@@ -13,11 +13,20 @@ interface MemberSummary {
   share: number;
 }
 
+interface Settlement {
+  id: number;
+  amount: number;
+  settled_by: number;
+  created_at: string;
+  settled_by_user: {
+    nickname: string;
+  };
+}
+
 interface SummaryData {
   total_spent: number;
   members: MemberSummary[];
-  is_settled: boolean;
-  settled_at: string | null;
+  settlements: Settlement[];
 }
 
 interface Group {
@@ -30,6 +39,8 @@ export default function Summary() {
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [loading, setLoading] = useState(true);
   const [groups, setGroups] = useState<Group[]>([]);
+  const [settleAmount, setSettleAmount] = useState<number>(0);
+  const [settling, setSettling] = useState(false);
   const router = useRouter();
 
   const year = date.getFullYear();
@@ -51,6 +62,15 @@ export default function Summary() {
         if (myGroups.length > 0) {
           const data = await apiRequest(`/api/summary?group_id=${myGroups[0].id}&year=${year}&month=${month}`);
           setSummary(data);
+          
+          // 残高を計算してデフォルトの精算額にセット
+          const user = JSON.parse(localStorage.getItem("user") || "{}");
+          const mySum = data.members.find((m: any) => m.user_id === user.id);
+          const initialBalance = mySum ? Math.max(0, mySum.share - mySum.paid) : 0;
+          const totalSettledByMe = data.settlements
+            .filter((s: any) => s.settled_by === user.id)
+            .reduce((sum: number, s: any) => sum + s.amount, 0);
+          setSettleAmount(Math.max(0, initialBalance - totalSettledByMe));
         }
       } catch (err) {
         console.error("Failed to fetch summary:", err);
@@ -68,9 +88,10 @@ export default function Summary() {
   };
 
   const handleSettle = async () => {
-    if (summary?.is_settled || groups.length === 0) return;
-    if (!confirm(`${year}年${month}月の精算を完了としてマークしますか？`)) return;
+    if (groups.length === 0 || settleAmount <= 0) return;
+    if (!confirm(`${year}年${month}月の精算として ¥${settleAmount.toLocaleString()} を記録しますか？`)) return;
 
+    setSettling(true);
     try {
       await apiRequest("/api/settle", {
         method: "POST",
@@ -78,16 +99,18 @@ export default function Summary() {
           group_id: groups[0].id,
           year,
           month,
+          amount: settleAmount,
         }),
       });
       // リロード
       const data = await apiRequest(`/api/summary?group_id=${groups[0].id}&year=${year}&month=${month}`);
       setSummary(data);
-    } catch (err) {
+      alert("精算を記録しました");
+    } catch (err: any) {
       console.error("Failed to settle:", err);
-      if (!(err instanceof Error && err.name === "ConnectionError")) {
-        alert("精算に失敗しました。");
-      }
+      alert("精算に失敗しました: " + err.message);
+    } finally {
+      setSettling(false);
     }
   };
 
@@ -117,7 +140,24 @@ export default function Summary() {
   const mySummary = summary?.members.find(m => m.user_id === user.id);
   const otherSummary = summary?.members.find(m => m.user_id !== user.id);
 
-  const balance = mySummary ? mySummary.share - mySummary.paid : 0;
+  // 初期バランス（レシートのみ）
+  const initialBalance = mySummary ? mySummary.share - mySummary.paid : 0;
+  
+  // すでに精算された額の合計（自分が払った分）
+  const totalSettledByMe = summary?.settlements
+    .filter(s => s.settled_by === user.id)
+    .reduce((sum, s) => sum + s.amount, 0) || 0;
+    
+  // 相手が精算した額の合計
+  const totalSettledByOther = summary?.settlements
+    .filter(s => s.settled_by !== user.id)
+    .reduce((sum, s) => sum + s.amount, 0) || 0;
+
+  // 現在の残高
+  const currentBalance = initialBalance - totalSettledByMe + totalSettledByOther;
+  
+  const canSettle = currentBalance > 0;
+  const maxSettleAmount = Math.max(0, currentBalance);
 
   return (
     <div className="pb-10">
@@ -137,62 +177,104 @@ export default function Summary() {
       <div className="p-6 space-y-6">
         {/* Settlement Card */}
         <section className={`rounded-3xl p-6 text-white shadow-xl shadow-blue-100 ${
-          balance > 0 ? "bg-gradient-to-br from-blue-600 to-indigo-700" : "bg-gradient-to-br from-emerald-500 to-teal-600"
+          currentBalance > 0 ? "bg-gradient-to-br from-blue-600 to-indigo-700" : 
+          currentBalance < 0 ? "bg-gradient-to-br from-emerald-500 to-teal-600" :
+          "bg-gradient-to-br from-gray-500 to-gray-600"
         }`}>
-          <p className="text-blue-100 text-sm font-medium mb-1">
-            {balance > 0 ? "精算が必要な金額" : "精算でもらえる金額"}
+          <p className="text-white/80 text-sm font-medium mb-1">
+            {currentBalance > 0 ? "現在の未精算額" : 
+             currentBalance < 0 ? "精算でもらえる額" : "精算完了"}
           </p>
           <div className="flex items-end gap-2 mb-4">
-            <span className="text-4xl font-black">¥{Math.abs(balance).toLocaleString()}</span>
-            <span className="text-blue-100 text-sm mb-1 pb-1">
-              {balance > 0 ? `${otherSummary?.nickname || "相手"}へ` : "もらえる予定"}
+            <span className="text-4xl font-black">¥{Math.abs(currentBalance).toLocaleString()}</span>
+            <span className="text-white/80 text-sm mb-1 pb-1">
+              {currentBalance > 0 ? `${otherSummary?.nickname || "相手"}へ` : 
+               currentBalance < 0 ? "もらえる予定" : ""}
             </span>
           </div>
-          
+
           <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/20">
             <div>
-              <p className="text-white/70 text-[10px] uppercase tracking-wider font-bold">支払った合計</p>
-              <p className="text-lg font-bold">¥{mySummary?.paid.toLocaleString() || 0}</p>
+              <p className="text-white/70 text-[10px] uppercase tracking-wider font-bold">初期バランス</p>
+              <p className="text-base font-bold">¥{initialBalance.toLocaleString()}</p>
             </div>
             <div>
-              <p className="text-white/70 text-[10px] uppercase tracking-wider font-bold">負担する合計</p>
-              <p className="text-lg font-bold">¥{mySummary?.share.toLocaleString() || 0}</p>
+              <p className="text-white/70 text-[10px] uppercase tracking-wider font-bold">精算済み合計</p>
+              <p className="text-base font-bold">¥{(totalSettledByMe - totalSettledByOther).toLocaleString()}</p>
             </div>
           </div>
         </section>
 
-        {/* Status Toggle */}
-        <section>
-          <button 
-            onClick={handleSettle}
-            className={`w-full p-4 rounded-2xl flex flex-col items-start gap-1 border-2 transition-all ${
-              summary?.is_settled 
-              ? "bg-green-50 border-green-200 text-green-700" 
-              : "bg-white border-gray-100 text-gray-400 shadow-sm hover:border-blue-200 active:scale-95"
-            }`}
-          >
-            <div className="flex items-center justify-between w-full">
-              <div className="flex items-center gap-3">
-                {summary?.is_settled ? <CheckCircle2 className="text-green-500" /> : <Circle />}
-                <div className="text-left">
-                  <p className="font-bold">{summary?.is_settled ? "精算済み" : "未精算（完了したらタップ）"}</p>
-                  {summary?.is_settled && summary.settled_at && (
-                    <p className="text-[10px] text-green-600 font-medium">
-                      {new Date(summary.settled_at).toLocaleString()} に精算
-                    </p>
-                  )}
-                </div>
-              </div>
-              {summary?.is_settled && (
-                <span className="text-[10px] font-bold bg-green-200/50 px-2 py-0.5 rounded text-green-600">
-                  DONE
-                </span>
-              )}
+        {/* Settlement Action */}
+        <section className="bg-white border border-gray-100 rounded-3xl p-4 shadow-sm space-y-4">
+          <div className="flex items-center gap-3 mb-2">
+            <div className={`p-2 rounded-xl ${canSettle ? 'bg-blue-50 text-blue-600' : 'bg-gray-50 text-gray-400'}`}>
+              <CheckCircle2 size={20} />
             </div>
-          </button>
+            <div>
+              <p className="text-sm font-bold text-gray-800">
+                {canSettle ? "精算を記録する" : 
+                 currentBalance < 0 ? "相手からの精算待ち" : "精算の必要はありません"}
+              </p>
+              <p className="text-[10px] text-gray-400">実際に支払った後に金額を入力して記録します</p>
+            </div>
+          </div>
+
+          {canSettle && (
+            <div className="space-y-3">
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">¥</span>
+                <input 
+                  type="number"
+                  className="w-full p-4 pl-10 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-black text-xl text-gray-900"
+                  value={settleAmount || ""}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    if (val <= maxSettleAmount) setSettleAmount(val);
+                  }}
+                  max={maxSettleAmount}
+                  placeholder="0"
+                />
+                <button 
+                  onClick={() => setSettleAmount(maxSettleAmount)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold bg-blue-100 text-blue-600 px-2 py-1 rounded-lg"
+                >
+                  全額
+                </button>
+              </div>
+              <button 
+                onClick={handleSettle}
+                disabled={settling || settleAmount <= 0}
+                className="w-full py-4 bg-gray-900 text-white rounded-2xl font-bold shadow-lg active:scale-[0.98] transition-all disabled:opacity-50"
+              >
+                {settling ? "処理中..." : `¥${settleAmount.toLocaleString()} を精算済みにする`}
+              </button>
+            </div>
+          )}
         </section>
 
-        {/* Member Details */}
+        {/* Settlement History */}
+        {summary && summary.settlements.length > 0 && (
+          <section className="space-y-3">
+            <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest ml-1 text-center">精算履歴</h2>
+            <div className="bg-gray-50 rounded-2xl overflow-hidden divide-y divide-gray-100">
+              {summary.settlements.map((s) => (
+                <div key={s.id} className="p-3 flex justify-between items-center bg-white/50">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold text-xs">
+                      {s.settled_by_user.nickname[0]}
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-gray-800">{s.settled_by_user.nickname}が精算</p>
+                      <p className="text-[10px] text-gray-400">{new Date(s.created_at).toLocaleString()}</p>
+                    </div>
+                  </div>
+                  <p className="font-bold text-gray-700">¥{s.amount.toLocaleString()}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}        {/* Member Details */}
         <section className="space-y-4">
           <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest ml-1">メンバーごとの状況</h2>
           <div className="bg-gray-50 rounded-2xl divide-y divide-gray-100">

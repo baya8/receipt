@@ -16,6 +16,7 @@ export default function Register() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
+    settlement_month: new Date().toISOString().slice(0, 7), // YYYY-MM
     shop: "",
     item: "",
     amount: 0,
@@ -77,13 +78,17 @@ export default function Register() {
       }
 
       const data = await response.json();
-      setFormData((prev) => ({
-        ...prev,
-        date: data.date || prev.date,
-        shop: data.shop || prev.shop,
-        item: data.item || prev.item,
-        amount: data.amount || prev.amount,
-      }));
+      setFormData((prev) => {
+        const newDate = data.date || prev.date;
+        return {
+          ...prev,
+          date: newDate,
+          settlement_month: newDate.slice(0, 7),
+          shop: data.shop || prev.shop,
+          item: data.item || prev.item,
+          amount: data.amount || prev.amount,
+        };
+      });
     } catch (err) {
       console.error("Failed to analyze receipt:", err);
       alert("解析に失敗しました。手動で入力してください。");
@@ -100,6 +105,7 @@ export default function Register() {
     setLoading(true);
     try {
       const user = JSON.parse(localStorage.getItem("user") || "{}");
+      const [sYear, sMonth] = formData.settlement_month.split('-').map(Number);
       await apiRequest("/api/receipts", {
         method: "POST",
         body: JSON.stringify({
@@ -108,6 +114,8 @@ export default function Register() {
           group_id: groups[0].id,
           payer_id: user.id || 0,
           date: new Date(formData.date).toISOString(),
+          settlement_year: sYear,
+          settlement_month: sMonth,
         }),
       });
       router.push("/");
@@ -182,15 +190,30 @@ export default function Register() {
         </section>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1">
-            <label className="text-sm font-semibold text-gray-800">購入日</label>
-            <input 
-              type="date" 
-              className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" 
-              value={formData.date}
-              onChange={(e) => setFormData({...formData, date: e.target.value})}
-              required
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-sm font-semibold text-gray-800">購入日</label>
+              <input 
+                type="date" 
+                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" 
+                value={formData.date}
+                onChange={(e) => {
+                  const newDate = e.target.value;
+                  setFormData({...formData, date: newDate, settlement_month: newDate.slice(0, 7)});
+                }}
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-semibold text-gray-800">精算対象月</label>
+              <input 
+                type="month" 
+                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" 
+                value={formData.settlement_month}
+                onChange={(e) => setFormData({...formData, settlement_month: e.target.value})}
+                required
+              />
+            </div>
           </div>
 
           <div className="space-y-1">

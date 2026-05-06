@@ -14,6 +14,9 @@ interface Receipt {
   amount: number;
   payment_method: string;
   payer_id: number;
+  payer?: {
+    nickname: string;
+  };
 }
 
 interface Group {
@@ -112,6 +115,11 @@ export default function Home() {
                   }`}>
                     {receipt.payment_method}
                   </span>
+                  {receipt.payer && (
+                    <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold">
+                      {receipt.payer.nickname}
+                    </span>
+                  )}
                 </div>
                 <h2 className="text-base font-semibold text-gray-900">{receipt.shop || "店名なし"}</h2>
                 <p className="text-sm text-gray-500">{receipt.item}</p>
