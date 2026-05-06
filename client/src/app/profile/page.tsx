@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { User, LogOut, Settings, Users, Mail, Save, Trash2, PlusCircle } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 import { useRouter } from "next/navigation";
+import { useApi } from "@/lib/ApiContext";
 
 interface UserInfo {
   id: number;
@@ -29,8 +30,10 @@ export default function Profile() {
   
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviting, setInviting] = useState(false);
+  const [creatingGroup, setCreatingGroup] = useState(false);
   
   const router = useRouter();
+  const { checkAuth } = useApi();
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -60,7 +63,29 @@ export default function Profile() {
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    checkAuth();
     router.push("/login");
+  };
+
+  const handleCreateGroup = async () => {
+    const groupName = prompt("新しいグループの名前を入力してください", "家族");
+    if (!groupName) return;
+
+    setCreatingGroup(true);
+    try {
+      await apiRequest("/api/groups", {
+        method: "POST",
+        body: JSON.stringify({ name: groupName }),
+      });
+      alert("グループを作成しました");
+      // グループ一覧を再取得
+      const groupData = await apiRequest("/api/groups");
+      setGroups(groupData);
+    } catch (err: any) {
+      alert("グループ作成に失敗しました: " + err.message);
+    } finally {
+      setCreatingGroup(false);
+    }
   };
 
   const handleUpdateUser = async (e: React.FormEvent) => {
@@ -187,74 +212,91 @@ export default function Profile() {
           {groups.length === 0 ? (
             <div className="bg-gray-50 rounded-3xl p-8 text-center space-y-4">
               <p className="text-gray-500 text-sm">所属しているグループがありません</p>
-              <button className="text-blue-600 font-bold flex items-center gap-2 mx-auto">
+              <button 
+                onClick={handleCreateGroup}
+                disabled={creatingGroup}
+                className="text-blue-600 font-bold flex items-center gap-2 mx-auto disabled:opacity-50"
+              >
                 <PlusCircle size={20} />
-                グループを作成
+                {creatingGroup ? "作成中..." : "グループを作成"}
               </button>
             </div>
           ) : (
-            groups.map(group => (
-              <div key={group.id} className="bg-white border border-gray-100 rounded-3xl shadow-sm overflow-hidden">
-                <div className="p-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-                  <h3 className="font-bold text-gray-800">{group.name}</h3>
-                  <span className="text-[10px] font-bold bg-blue-100 text-blue-600 px-2 py-0.5 rounded">
-                    ID: {group.id}
-                  </span>
-                </div>
-                
-                <div className="p-4 space-y-4">
-                  <div className="space-y-2">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1">メンバー</p>
-                    <div className="divide-y divide-gray-50">
-                      {group.members.map(member => (
-                        <div key={member.id} className="py-3 flex justify-between items-center">
-                          <div>
-                            <p className="text-sm font-bold text-gray-800">{member.nickname}</p>
-                            <p className="text-xs text-gray-500">{member.email}</p>
-                          </div>
-                          {group.owner_id === user?.id && member.id !== user?.id && (
-                            <button 
-                              onClick={() => handleRemoveMember(group.id, member.id)}
-                              className="text-gray-300 hover:text-red-500 p-2"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          )}
-                          {member.id === group.owner_id && (
-                            <span className="text-[10px] font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded">管理者</span>
-                          )}
+            <>
+              <div className="space-y-4">
+                {groups.map(group => (
+                  <div key={group.id} className="bg-white border border-gray-100 rounded-3xl shadow-sm overflow-hidden">
+                    <div className="p-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
+                      <h3 className="font-bold text-gray-800">{group.name}</h3>
+                      <span className="text-[10px] font-bold bg-blue-100 text-blue-600 px-2 py-0.5 rounded">
+                        ID: {group.id}
+                      </span>
+                    </div>
+                    
+                    <div className="p-4 space-y-4">
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1">メンバー</p>
+                        <div className="divide-y divide-gray-50">
+                          {group.members.map(member => (
+                            <div key={member.id} className="py-3 flex justify-between items-center">
+                              <div>
+                                <p className="text-sm font-bold text-gray-800">{member.nickname}</p>
+                                <p className="text-xs text-gray-500">{member.email}</p>
+                              </div>
+                              {group.owner_id === user?.id && member.id !== user?.id && (
+                                <button 
+                                  onClick={() => handleRemoveMember(group.id, member.id)}
+                                  className="text-gray-300 hover:text-red-500 p-2"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
+                              {member.id === group.owner_id && (
+                                <span className="text-[10px] font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded">管理者</span>
+                              )}
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      </div>
+
+                      {group.owner_id === user?.id && (
+                        <div className="pt-4 border-t border-gray-50 space-y-2">
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1">メンバーを招待</p>
+                          <div className="flex gap-2">
+                            <div className="relative flex-1">
+                              <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                              <input 
+                                type="email" 
+                                placeholder="メールアドレス"
+                                className="w-full p-2 pl-9 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                                value={inviteEmail}
+                                onChange={(e) => setInviteEmail(e.target.value)}
+                              />
+                            </div>
+                            <button 
+                              onClick={() => handleInvite(group.id)}
+                              disabled={inviting || !inviteEmail}
+                              className="bg-gray-900 text-white px-4 py-2 rounded-xl text-sm font-bold active:scale-95 transition-all disabled:opacity-50"
+                            >
+                              招待
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
-
-                  {group.owner_id === user?.id && (
-                    <div className="pt-4 border-t border-gray-50 space-y-2">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1">メンバーを招待</p>
-                      <div className="flex gap-2">
-                        <div className="relative flex-1">
-                          <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                          <input 
-                            type="email" 
-                            placeholder="メールアドレス"
-                            className="w-full p-2 pl-9 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-                            value={inviteEmail}
-                            onChange={(e) => setInviteEmail(e.target.value)}
-                          />
-                        </div>
-                        <button 
-                          onClick={() => handleInvite(group.id)}
-                          disabled={inviting || !inviteEmail}
-                          className="bg-gray-900 text-white px-4 py-2 rounded-xl text-sm font-bold active:scale-95 transition-all disabled:opacity-50"
-                        >
-                          招待
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                ))}
               </div>
-            ))
+              
+              <button 
+                onClick={handleCreateGroup}
+                disabled={creatingGroup}
+                className="w-full py-4 border-2 border-dashed border-gray-200 rounded-3xl text-gray-400 font-bold flex items-center justify-center gap-2 hover:bg-gray-50 active:scale-95 transition-all disabled:opacity-50"
+              >
+                <PlusCircle size={20} />
+                {creatingGroup ? "作成中..." : "新しくグループを追加"}
+              </button>
+            </>
           )}
         </section>
       </div>

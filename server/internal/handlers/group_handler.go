@@ -71,7 +71,7 @@ func InviteMember(c *gin.Context) {
 
 	var userToInvite models.User
 	if err := config.DB.Where("email = ?", input.Email).First(&userToInvite).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User with this email not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "招待相手のユーザーが見つかりません。先に相手の方がアカウント登録を完了しているか確認してください。"})
 		return
 	}
 
@@ -117,7 +117,7 @@ func RemoveMember(c *gin.Context) {
 
 	var userToRemove models.User
 	if err := config.DB.First(&userToRemove, memberID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "User to remove not found"})
 		return
 	}
 
@@ -133,18 +133,17 @@ func RemoveMember(c *gin.Context) {
 func GetMyGroups(c *gin.Context) {
 	userID, _ := c.Get("userID")
 	
-	var user models.User
-	if err := config.DB.Preload("Members").First(&user, userID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-		return
-	}
-
 	var groups []models.Group
 	// 自分がメンバーに含まれるグループを取得
-	config.DB.Joins("JOIN group_members ON group_members.group_id = groups.id").
+	err := config.DB.Joins("JOIN group_members ON group_members.group_id = groups.id").
 		Where("group_members.user_id = ?", userID).
 		Preload("Members").
-		Find(&groups)
+		Find(&groups).Error
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch groups"})
+		return
+	}
 
 	c.JSON(http.StatusOK, groups)
 }

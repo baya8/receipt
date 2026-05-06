@@ -23,7 +23,7 @@ export async function apiRequest(path: string, options: RequestInit = {}) {
     });
 
     if (!response.ok) {
-      if (response.status === 401) {
+      if (response.status === 401 && !path.includes("/auth/login")) {
         if (typeof window !== "undefined") {
           localStorage.removeItem("token");
           localStorage.removeItem("user");

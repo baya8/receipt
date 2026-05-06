@@ -6,14 +6,24 @@ import ServerError from "@/components/ServerError";
 interface ApiContextType {
   isOffline: boolean;
   setOffline: (offline: boolean) => void;
+  isAuthenticated: boolean;
+  checkAuth: () => void;
 }
 
 const ApiContext = createContext<ApiContextType | undefined>(undefined);
 
 export function ApiProvider({ children }: { children: ReactNode }) {
   const [isOffline, setIsOffline] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  const checkAuth = () => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    setIsAuthenticated(!!token);
+  };
 
   React.useEffect(() => {
+    checkAuth();
+
     const handleOffline = () => setIsOffline(true);
     window.addEventListener("server-offline", handleOffline);
     return () => window.removeEventListener("server-offline", handleOffline);
@@ -24,7 +34,7 @@ export function ApiProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <ApiContext.Provider value={{ isOffline, setOffline: setIsOffline }}>
+    <ApiContext.Provider value={{ isOffline, setOffline: setIsOffline, isAuthenticated, checkAuth }}>
       {children}
     </ApiContext.Provider>
   );

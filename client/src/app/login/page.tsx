@@ -4,12 +4,14 @@ import { useState } from "react";
 import { apiRequest } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useApi } from "@/lib/ApiContext";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const router = useRouter();
+  const { checkAuth } = useApi();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,6 +22,7 @@ export default function Login() {
       });
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
+      checkAuth();
       router.push("/");
     } catch (err: any) {
       setError(err.message);

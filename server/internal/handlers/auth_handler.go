@@ -83,7 +83,7 @@ func GetMe(c *gin.Context) {
 
 	var user models.User
 	if err := config.DB.First(&user, userID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User record not found"})
 		return
 	}
 
@@ -108,7 +108,7 @@ func UpdateMe(c *gin.Context) {
 
 	var user models.User
 	if err := config.DB.First(&user, userID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User record not found for update"})
 		return
 	}
 
