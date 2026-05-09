@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { User, LogOut, Settings, Users, Mail, Save, Trash2, PlusCircle } from "lucide-react";
+import { User, LogOut, Settings, Users, Mail, Save, Trash2, PlusCircle, Edit3, Trash } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { useApi } from "@/lib/ApiContext";
+import { toast } from "sonner";
 
 interface UserInfo {
   id: number;
@@ -77,14 +78,48 @@ export default function Profile() {
         method: "POST",
         body: JSON.stringify({ name: groupName }),
       });
-      alert("グループを作成しました");
+      toast.success("グループを作成しました");
       // グループ一覧を再取得
       const groupData = await apiRequest("/api/groups");
       setGroups(groupData);
     } catch (err: any) {
-      alert("グループ作成に失敗しました: " + err.message);
+      toast.error("グループ作成に失敗しました: " + err.message);
     } finally {
       setCreatingGroup(false);
+    }
+  };
+
+  const handleUpdateGroup = async (groupId: number, currentName: string) => {
+    const newName = prompt("グループの名前を変更します", currentName);
+    if (!newName || newName === currentName) return;
+
+    try {
+      await apiRequest(`/api/groups/${groupId}`, {
+        method: "PUT",
+        body: JSON.stringify({ name: newName }),
+      });
+      toast.success("グループ名を変更しました");
+      // 一覧を再取得
+      const groupData = await apiRequest("/api/groups");
+      setGroups(groupData);
+    } catch (err: any) {
+      toast.error("変更に失敗しました: " + err.message);
+    }
+  };
+
+  const handleDeleteGroup = async (groupId: number, groupName: string) => {
+    if (!confirm(`グループ「${groupName}」を削除しますか？\n(関連するすべてのレシートと精算履歴も削除されます)`)) return;
+
+    try {
+      await apiRequest(`/api/groups/${groupId}`, {
+        method: "DELETE",
+      });
+      toast.success("グループを削除しました");
+      // 一覧を再取得
+      const groupData = await apiRequest("/api/groups");
+      setGroups(groupData);
+    } catch (err: any) {
+      toast.error("削除に失敗しました: " + err.message);
     }
   };
 
@@ -98,9 +133,9 @@ export default function Profile() {
       });
       setUser(updated);
       setPassword("");
-      alert("アカウント情報を更新しました");
+      toast.success("アカウント情報を更新しました");
     } catch (err: any) {
-      alert("更新に失敗しました: " + err.message);
+      toast.error("更新に失敗しました: " + err.message);
     } finally {
       setSavingUser(false);
     }
@@ -115,12 +150,12 @@ export default function Profile() {
         body: JSON.stringify({ email: inviteEmail }),
       });
       setInviteEmail("");
-      alert("メンバーを招待しました");
+      toast.success("メンバーを招待しました");
       // グループ情報を再取得
       const groupData = await apiRequest("/api/groups");
       setGroups(groupData);
     } catch (err: any) {
-      alert("招待に失敗しました: " + err.message);
+      toast.error("招待に失敗しました: " + err.message);
     } finally {
       setInviting(false);
     }
@@ -132,11 +167,12 @@ export default function Profile() {
       await apiRequest(`/api/groups/${groupId}/members/${memberId}`, {
         method: "DELETE",
       });
+      toast.success("メンバーを削除しました");
       // グループ情報を再取得
       const groupData = await apiRequest("/api/groups");
       setGroups(groupData);
     } catch (err: any) {
-      alert("削除に失敗しました: " + err.message);
+      toast.error("削除に失敗しました: " + err.message);
     }
   };
 
@@ -227,10 +263,31 @@ export default function Profile() {
                 {groups.map(group => (
                   <div key={group.id} className="bg-white border border-gray-100 rounded-3xl shadow-sm overflow-hidden">
                     <div className="p-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-                      <h3 className="font-bold text-gray-800">{group.name}</h3>
-                      <span className="text-[10px] font-bold bg-blue-100 text-blue-600 px-2 py-0.5 rounded">
-                        ID: {group.id}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-bold text-gray-800">{group.name}</h3>
+                        {group.owner_id === user?.id && (
+                          <button 
+                            onClick={() => handleUpdateGroup(group.id, group.name)}
+                            className="text-gray-400 hover:text-blue-500 transition-colors"
+                          >
+                            <Edit3 size={14} />
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {group.owner_id === user?.id && (
+                          <button 
+                            onClick={() => handleDeleteGroup(group.id, group.name)}
+                            className="text-gray-300 hover:text-red-500 transition-colors mr-1"
+                            title="グループを削除"
+                          >
+                            <Trash size={16} />
+                          </button>
+                        )}
+                        <span className="text-[10px] font-bold bg-blue-100 text-blue-600 px-2 py-0.5 rounded">
+                          ID: {group.id}
+                        </span>
+                      </div>
                     </div>
                     
                     <div className="p-4 space-y-4">

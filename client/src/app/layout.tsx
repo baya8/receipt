@@ -5,6 +5,7 @@ import { Receipt, PlusCircle, User, List, PieChart } from "lucide-react";
 import Link from "next/link";
 import { ApiProvider } from "@/lib/ApiContext";
 import BottomNav from "@/components/BottomNav";
+import { Toaster } from "sonner";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -26,6 +27,7 @@ export default function RootLayout({
             {children}
           </main>
           <BottomNav />
+          <Toaster position="top-center" richColors />
         </ApiProvider>
       </body>
     </html>

@@ -7,9 +7,14 @@ import (
 	"receipt/server/internal/models"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type CreateGroupInput struct {
+	Name string `json:"name" binding:"required"`
+}
+
+type UpdateGroupInput struct {
 	Name string `json:"name" binding:"required"`
 }
 
@@ -146,4 +151,86 @@ func GetMyGroups(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, groups)
+}
+
+// UpdateGroup グループ情報更新 (名前変更)
+func UpdateGroup(c *gin.Context) {
+	groupID := c.Param("id")
+	userID, _ := c.Get("userID")
+
+	var input UpdateGroupInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var group models.Group
+	if err := config.DB.First(&group, groupID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Group not found"})
+		return
+	}
+
+	// 権限チェック (管理者のみ変更可能)
+	if group.OwnerID != userID.(uint) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Only group owner can update group info"})
+		return
+	}
+
+	group.Name = input.Name
+	if err := config.DB.Save(&group).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update group"})
+		return
+	}
+
+	c.JSON(http.StatusOK, group)
+}
+
+// DeleteGroup グループ削除
+func DeleteGroup(c *gin.Context) {
+	groupID := c.Param("id")
+	userID, _ := c.Get("userID")
+
+	var group models.Group
+	if err := config.DB.First(&group, groupID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Group not found"})
+		return
+	}
+
+	// 権限チェック (管理者のみ削除可能)
+	if group.OwnerID != userID.(uint) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Only group owner can delete group"})
+		return
+	}
+
+	// トランザクションで関連データを含めて削除
+	err := config.DB.Transaction(func(tx *gorm.DB) error {
+		// 1. レシートを削除 (物理削除または論理削除はモデルの定義に従う)
+		if err := tx.Where("group_id = ?", group.ID).Delete(&models.Receipt{}).Error; err != nil {
+			return err
+		}
+
+		// 2. 精算履歴を削除
+		if err := tx.Where("group_id = ?", group.ID).Delete(&models.Settlement{}).Error; err != nil {
+			return err
+		}
+
+		// 3. メンバーとの紐付けを解除
+		if err := tx.Model(&group).Association("Members").Clear(); err != nil {
+			return err
+		}
+
+		// 4. グループ自体を削除
+		if err := tx.Delete(&group).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete group: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Group deleted successfully"})
 }

@@ -5,11 +5,11 @@ import { apiRequest } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useApi } from "@/lib/ApiContext";
+import { toast } from "sonner";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
   const router = useRouter();
   const { checkAuth } = useApi();
 
@@ -23,9 +23,10 @@ export default function Login() {
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
       checkAuth();
+      toast.success("ログインしました");
       router.push("/");
     } catch (err: any) {
-      setError(err.message);
+      toast.error(err.message || "ログインに失敗しました");
     }
   };
 
@@ -37,7 +38,6 @@ export default function Login() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {error && <p className="text-red-500 text-sm text-center bg-red-50 p-2 rounded">{error}</p>}
         <div className="space-y-1">
           <label className="text-sm font-semibold text-gray-800">メールアドレス</label>
           <input 

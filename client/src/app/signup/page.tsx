@@ -4,19 +4,18 @@ import { useState } from "react";
 import { apiRequest } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { toast } from "sonner";
 
 export default function Signup() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [nickname, setNickname] = useState("");
-  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError("");
 
     try {
       await apiRequest("/auth/register", {
@@ -24,10 +23,10 @@ export default function Signup() {
         body: JSON.stringify({ email, password, nickname }),
       });
       // 登録成功したらそのままログイン画面へ
-      alert("登録が完了しました。ログインしてください。");
+      toast.success("登録が完了しました。ログインしてください。");
       router.push("/login");
     } catch (err: any) {
-      setError(err.message);
+      toast.error(err.message || "登録に失敗しました");
     } finally {
       setLoading(false);
     }
@@ -41,8 +40,6 @@ export default function Signup() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {error && <p className="text-red-500 text-sm text-center bg-red-50 p-2 rounded">{error}</p>}
-        
         <div className="space-y-1">
           <label className="text-sm font-semibold text-gray-800">ニックネーム</label>
           <input 

@@ -5,6 +5,7 @@ import { ArrowLeft, Trash2, Save } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiRequest } from "@/lib/api";
+import { toast } from "sonner";
 
 interface Receipt {
   id: number;
@@ -52,9 +53,9 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
         setReceipt(data);
       } catch (err) {
         console.error("Failed to fetch receipt:", err);
-        // ConnectionErrorはApiProviderがハンドルするため、ここではそれ以外のエラーのみアラートを出す
+        // ConnectionErrorはApiProviderがハンドルするため、ここではそれ以外のエラーのみ通知を出す
         if (!(err instanceof Error && err.name === "ConnectionError")) {
-          alert("データの取得に失敗しました");
+          toast.error("データの取得に失敗しました");
         }
       } finally {
         setLoading(false);
@@ -82,11 +83,12 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
           settlement_month: sMonth,
         }),
       });
+      toast.success("レシートを更新しました");
       router.push("/");
     } catch (err) {
       console.error("Failed to update receipt:", err);
       if (!(err instanceof Error && err.name === "ConnectionError")) {
-        alert("更新に失敗しました");
+        toast.error("更新に失敗しました");
       }
     } finally {
       setSaving(false);
@@ -100,11 +102,12 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
       await apiRequest(`/api/receipts/${id}`, {
         method: "DELETE",
       });
+      toast.success("レシートを削除しました");
       router.push("/");
     } catch (err) {
       console.error("Failed to delete receipt:", err);
       if (!(err instanceof Error && err.name === "ConnectionError")) {
-        alert("削除に失敗しました");
+        toast.error("削除に失敗しました");
       }
     }
   };

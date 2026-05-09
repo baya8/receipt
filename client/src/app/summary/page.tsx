@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, CheckCircle2, Circle, PlusCircle } from "luc
 import { apiRequest } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { toast } from "sonner";
 
 interface MemberSummary {
   user_id: number;
@@ -105,10 +106,10 @@ export default function Summary() {
       // リロード
       const data = await apiRequest(`/api/summary?group_id=${groups[0].id}&year=${year}&month=${month}`);
       setSummary(data);
-      alert("精算を記録しました");
+      toast.success("精算を記録しました");
     } catch (err: any) {
       console.error("Failed to settle:", err);
-      alert("精算に失敗しました: " + err.message);
+      toast.error("精算に失敗しました: " + err.message);
     } finally {
       setSettling(false);
     }

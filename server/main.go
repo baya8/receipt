@@ -50,6 +50,8 @@ func main() {
 
 		api.GET("/groups", handlers.GetMyGroups)
 		api.POST("/groups", handlers.CreateGroup)
+		api.PUT("/groups/:id", handlers.UpdateGroup)
+		api.DELETE("/groups/:id", handlers.DeleteGroup)
 		api.POST("/groups/:id/invite", handlers.InviteMember)
 		api.DELETE("/groups/:id/members/:userId", handlers.RemoveMember)
 

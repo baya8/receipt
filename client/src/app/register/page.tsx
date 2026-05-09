@@ -5,6 +5,7 @@ import { Camera, Save, Loader2, PlusCircle } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { toast } from "sonner";
 
 interface Group {
   id: number;
@@ -91,7 +92,7 @@ export default function Register() {
       });
     } catch (err) {
       console.error("Failed to analyze receipt:", err);
-      alert("解析に失敗しました。手動で入力してください。");
+      toast.error("解析に失敗しました。手動で入力してください。");
     } finally {
       setAnalyzing(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -118,10 +119,11 @@ export default function Register() {
           settlement_month: sMonth,
         }),
       });
+      toast.success("レシートを登録しました");
       router.push("/");
     } catch (err) {
       console.error("Failed to register receipt:", err);
-      alert("登録に失敗しました");
+      toast.error("登録に失敗しました");
     } finally {
       setLoading(false);
     }
