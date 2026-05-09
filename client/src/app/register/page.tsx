@@ -102,6 +102,11 @@ export default function Register() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (groups.length === 0) return;
+
+    if (formData.amount <= 0) {
+      toast.error("金額は1円以上にしてください");
+      return;
+    }
     
     setLoading(true);
     try {
@@ -251,6 +256,7 @@ export default function Register() {
                 value={formData.amount || ""}
                 onChange={(e) => setFormData({...formData, amount: Number(e.target.value)})}
                 required
+                min="1"
               />
             </div>
           </div>

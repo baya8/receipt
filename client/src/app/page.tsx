@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronRight, PlusCircle } from "lucide-react";
+import { ChevronRight, PlusCircle, ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { apiRequest } from "@/lib/api";
 import { useRouter } from "next/navigation";
@@ -28,7 +28,11 @@ export default function Home() {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [loading, setLoading] = useState(true);
   const [groups, setGroups] = useState<Group[]>([]);
+  const [date, setDate] = useState(new Date());
   const router = useRouter();
+
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -38,14 +42,15 @@ export default function Home() {
     }
 
     async function fetchData() {
+      setLoading(true);
       try {
         // 1. 自分が所属するグループを取得
         const myGroups = await apiRequest("/api/groups");
         setGroups(myGroups);
 
         if (myGroups.length > 0) {
-          // 2. 最初のグループのレシートを取得
-          const data = await apiRequest(`/api/receipts?group_id=${myGroups[0].id}`);
+          // 2. 年月でフィルタリングしてレシートを取得
+          const data = await apiRequest(`/api/receipts?group_id=${myGroups[0].id}&year=${year}&month=${month}`);
           setReceipts(data);
         }
       } catch (err) {
@@ -55,9 +60,26 @@ export default function Home() {
       }
     }
     fetchData();
-  }, [router]);
+  }, [router, year, month]);
+
+  const changeMonth = (offset: number) => {
+    const newDate = new Date(date);
+    newDate.setMonth(newDate.getMonth() + offset);
+    setDate(newDate);
+  };
 
   const totalAmount = receipts.reduce((sum, r) => sum + r.amount, 0);
+
+  const getPayerColor = (userId: number) => {
+    const colors = [
+      "bg-blue-50 text-blue-600 border-blue-100",
+      "bg-purple-50 text-purple-600 border-purple-100",
+      "bg-pink-50 text-pink-600 border-pink-100",
+      "bg-indigo-50 text-indigo-600 border-indigo-100",
+      "bg-cyan-50 text-cyan-600 border-cyan-100",
+    ];
+    return colors[userId % colors.length];
+  };
 
   if (loading) return <div className="p-8 text-center text-gray-400">読み込み中...</div>;
 
@@ -84,15 +106,24 @@ export default function Home() {
   return (
     <div>
       {/* Header */}
-      <header className="sticky top-0 bg-white border-b border-gray-100 p-4 flex justify-between items-center z-10">
-        <div>
-          <h1 className="text-xl font-bold text-gray-800">レシート一覧</h1>
+      <header className="sticky top-0 bg-white border-b border-gray-100 p-4 flex justify-between items-center z-10 shadow-sm">
+        <button onClick={() => changeMonth(-1)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+          <ChevronLeft size={20} className="text-gray-600" />
+        </button>
+        <div className="text-center">
+          <h1 className="text-lg font-bold text-gray-800">{year}年{month}月</h1>
           <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{groups[0].name}</p>
         </div>
-        <div className="text-sm font-medium text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
-          合計: ¥{totalAmount.toLocaleString()}
-        </div>
+        <button onClick={() => changeMonth(1)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+          <ChevronRight size={20} className="text-gray-600" />
+        </button>
       </header>
+
+      {/* Summary Bar */}
+      <div className="px-4 py-2 bg-blue-50/50 border-b border-blue-50 flex justify-between items-center">
+        <span className="text-xs font-semibold text-blue-600">支出合計</span>
+        <span className="text-sm font-black text-blue-700">¥{totalAmount.toLocaleString()}</span>
+      </div>
 
       {/* List */}
       <div className="divide-y divide-gray-100">
@@ -116,7 +147,7 @@ export default function Home() {
                     {receipt.payment_method}
                   </span>
                   {receipt.payer && (
-                    <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold">
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${getPayerColor(receipt.payer_id)}`}>
                       {receipt.payer.nickname}
                     </span>
                   )}

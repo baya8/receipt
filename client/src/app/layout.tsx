@@ -27,7 +27,15 @@ export default function RootLayout({
             {children}
           </main>
           <BottomNav />
-          <Toaster position="top-center" richColors />
+          <Toaster 
+            position="top-center" 
+            richColors 
+            toastOptions={{
+              style: {
+                marginTop: '80vh',
+              },
+            }}
+          />
         </ApiProvider>
       </body>
     </html>

@@ -19,6 +19,7 @@ interface Receipt {
   payer_id: number;
   payment_method: string;
   group_id: number;
+  settled_at: string | null;
   payer?: {
     nickname: string;
   };
@@ -67,6 +68,11 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!receipt) return;
+
+    if (receipt.amount <= 0) {
+      toast.error("金額は1円以上にしてください");
+      return;
+    }
     
     setSaving(true);
     try {
@@ -116,6 +122,8 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
   if (!receipt) return <div className="p-8 text-center text-red-500">データが見つかりませんでした</div>;
 
   const isCreator = currentUserId === receipt.user_id;
+  const isSettled = receipt.settled_at !== null;
+  const canEdit = isCreator && !isSettled;
 
   return (
     <div className="pb-10 bg-white">
@@ -125,7 +133,7 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
           <ArrowLeft size={24} />
         </Link>
         <h1 className="text-lg font-bold text-gray-800">レシート詳細</h1>
-        {isCreator ? (
+        {canEdit ? (
           <button 
             onClick={handleDelete}
             className="text-red-500 p-2 active:bg-red-50 rounded-full transition-colors"
@@ -138,24 +146,30 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
       </header>
 
       <div className="p-6 space-y-6">
-        <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 mb-4 flex justify-between items-center">
+        <div className={`p-4 rounded-2xl border mb-4 flex justify-between items-center ${
+          isSettled ? "bg-gray-50 border-gray-200" : "bg-blue-50 border-blue-100"
+        }`}>
           <div>
-            <p className="text-xs text-blue-500 font-medium mb-1">精算ステータス</p>
-            <p className="text-sm text-blue-800 font-semibold">
-              {receipt.payment_method}で精算予定
+            <p className={`text-xs font-medium mb-1 ${isSettled ? "text-gray-400" : "text-blue-500"}`}>
+              精算ステータス
+            </p>
+            <p className={`text-sm font-semibold ${isSettled ? "text-gray-500" : "text-blue-800"}`}>
+              {isSettled ? "精算済み（編集不可）" : `${receipt.payment_method}で精算予定`}
             </p>
           </div>
           {receipt.payer && (
             <div className="text-right">
-              <p className="text-xs text-blue-500 font-medium mb-1">支払者</p>
-              <p className="text-sm text-blue-800 font-bold bg-white px-3 py-1 rounded-full shadow-sm border border-blue-100">
+              <p className={`text-xs font-medium mb-1 ${isSettled ? "text-gray-400" : "text-blue-500"}`}>支払者</p>
+              <p className={`text-sm font-bold bg-white px-3 py-1 rounded-full shadow-sm border ${
+                isSettled ? "text-gray-500 border-gray-100" : "text-blue-800 border-blue-100"
+              }`}>
                 {receipt.payer.nickname}
               </p>
             </div>
           )}
         </div>
 
-        {/* Input Form (Editable only for creator) */}
+        {/* Input Form (Editable only for creator and not settled) */}
         <form onSubmit={handleSave} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
@@ -170,7 +184,7 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
                   setReceipt({...receipt, date: newDate, settlement_year: y, settlement_month: m});
                 }}
                 required
-                disabled={!isCreator}
+                disabled={!canEdit}
               />
             </div>
             <div className="space-y-1">
@@ -184,7 +198,7 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
                   setReceipt({...receipt, settlement_year: y, settlement_month: m});
                 }}
                 required
-                disabled={!isCreator}
+                disabled={!canEdit}
               />
             </div>
           </div>
@@ -196,7 +210,7 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
               className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-gray-900 disabled:opacity-70" 
               value={receipt.shop} 
               onChange={(e) => setReceipt({...receipt, shop: e.target.value})}
-              disabled={!isCreator}
+              disabled={!canEdit}
             />
           </div>
 
@@ -207,7 +221,7 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
               className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-gray-900 disabled:opacity-70" 
               value={receipt.item} 
               onChange={(e) => setReceipt({...receipt, item: e.target.value})}
-              disabled={!isCreator}
+              disabled={!canEdit}
             />
           </div>
 
@@ -221,7 +235,8 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
                 value={receipt.amount} 
                 onChange={(e) => setReceipt({...receipt, amount: Number(e.target.value)})}
                 required
-                disabled={!isCreator}
+                disabled={!canEdit}
+                min="1"
               />
             </div>
           </div>
@@ -233,7 +248,7 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
                 className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none text-gray-900 disabled:opacity-70" 
                 value={receipt.payment_method}
                 onChange={(e) => setReceipt({...receipt, payment_method: e.target.value})}
-                disabled={!isCreator}
+                disabled={!canEdit}
               >
                 <option>折半</option>
                 <option>自分が10割負担</option>
@@ -242,7 +257,7 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
             </div>
           </div>
 
-          {isCreator ? (
+          {canEdit ? (
             <div className="pt-4">
               <button 
                 type="submit" 
@@ -256,7 +271,7 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
           ) : (
             <div className="pt-4 p-4 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
               <p className="text-xs text-gray-400 text-center">
-                このレシートは登録者本人のみ編集・削除できます
+                {isSettled ? "このレシートは精算済みのため編集・削除できません" : "このレシートは登録者本人のみ編集・削除できます"}
               </p>
             </div>
           )}

@@ -89,7 +89,16 @@ export default function Summary() {
   };
 
   const handleSettle = async () => {
-    if (groups.length === 0 || settleAmount <= 0) return;
+    if (groups.length === 0 || settleAmount <= 0) {
+      toast.error("精算金額を入力してください");
+      return;
+    }
+
+    if (settleAmount > maxSettleAmount) {
+      toast.error(`精算金額は ¥${maxSettleAmount.toLocaleString()} 以下にしてください`);
+      return;
+    }
+
     if (!confirm(`${year}年${month}月の精算として ¥${settleAmount.toLocaleString()} を記録しますか？`)) return;
 
     setSettling(true);
@@ -234,6 +243,7 @@ export default function Summary() {
                     if (val <= maxSettleAmount) setSettleAmount(val);
                   }}
                   max={maxSettleAmount}
+                  min="1"
                   placeholder="0"
                 />
                 <button 

@@ -74,20 +74,46 @@ func GetMonthlySummary(c *gin.Context) {
 
 		// 精算方法に応じた負担額の計算
 		switch r.PaymentMethod {
-		case "折半":
-			// メンバー全員で均等割り（PoCでは2人を想定）
-			sharePerPerson := r.Amount / len(group.Members)
-			for _, m := range group.Members {
-				shareMap[m.ID] += sharePerPerson
-			}
-		case "自分が10割負担":
+		case "自分が10割負担", "自分が10割":
+			// 支払者が全額負担
 			shareMap[r.PayerID] += r.Amount
+
 		case "全額相手負担":
-			// 支払者以外が負担（2人組を想定した簡易実装）
-			for _, m := range group.Members {
-				if m.ID != r.PayerID {
-					shareMap[m.ID] += r.Amount
+			// 支払者以外で均等に負担（2人以上の場合に対応）
+			otherCount := len(group.Members) - 1
+			if otherCount > 0 {
+				sharePerPerson := r.Amount / otherCount
+				remainder := r.Amount % otherCount
+				
+				isRemainderAssigned := false
+				for _, m := range group.Members {
+					if m.ID != r.PayerID {
+						shareMap[m.ID] += sharePerPerson
+						if !isRemainderAssigned {
+							shareMap[m.ID] += remainder
+							isRemainderAssigned = true
+						}
+					}
 				}
+			} else {
+				// 相手がいない場合は支払者が負担
+				shareMap[r.PayerID] += r.Amount
+			}
+
+		case "折半":
+			fallthrough
+		default:
+			// メンバー全員で均等割り
+			numMembers := len(group.Members)
+			if numMembers > 0 {
+				sharePerPerson := r.Amount / numMembers
+				remainder := r.Amount % numMembers
+				
+				for _, m := range group.Members {
+					shareMap[m.ID] += sharePerPerson
+				}
+				// 端数は支払者が負担（または誰か一人に寄せる）
+				shareMap[r.PayerID] += remainder
 			}
 		}
 	}
@@ -115,6 +141,11 @@ func CreateSettlement(c *gin.Context) {
 	var input CreateSettlementInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if input.Amount <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "精算金額は1円以上にしてください"})
 		return
 	}
 

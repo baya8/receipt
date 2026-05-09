@@ -31,8 +31,19 @@ func GetReceipts(c *gin.Context) {
 	}
 	groupID, _ := strconv.Atoi(groupIDStr)
 
+	yearStr := c.Query("year")
+	monthStr := c.Query("month")
+
+	db := config.DB.Preload("Payer").Where("group_id = ?", groupID)
+
+	if yearStr != "" && monthStr != "" {
+		year, _ := strconv.Atoi(yearStr)
+		month, _ := strconv.Atoi(monthStr)
+		db = db.Where("settlement_year = ? AND settlement_month = ?", year, month)
+	}
+
 	var receipts []models.Receipt
-	if err := config.DB.Preload("Payer").Where("group_id = ?", groupID).Order("date desc").Find(&receipts).Error; err != nil {
+	if err := db.Order("date desc").Find(&receipts).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch receipts"})
 		return
 	}
@@ -45,6 +56,11 @@ func CreateReceipt(c *gin.Context) {
 	var input CreateReceiptInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if input.Amount <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "金額は1円以上にしてください"})
 		return
 	}
 
@@ -108,9 +124,20 @@ func UpdateReceipt(c *gin.Context) {
 		return
 	}
 
+	// 精算済みチェック
+	if receipt.SettledAt != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "精算済みのレシートは編集できません"})
+		return
+	}
+
 	var input CreateReceiptInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if input.Amount <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "金額は1円以上にしてください"})
 		return
 	}
 
@@ -153,6 +180,12 @@ func DeleteReceipt(c *gin.Context) {
 	// 登録者本人かチェック
 	if receipt.UserID != userID.(uint) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Only the creator can delete this receipt"})
+		return
+	}
+
+	// 精算済みチェック
+	if receipt.SettledAt != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "精算済みのレシートは削除できません"})
 		return
 	}
 
