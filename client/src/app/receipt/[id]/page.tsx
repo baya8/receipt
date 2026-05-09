@@ -125,6 +125,15 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
   const isSettled = receipt.settled_at !== null;
   const canEdit = isCreator && !isSettled;
 
+  const getPaymentMethodLabel = (method: string) => {
+    switch (method) {
+      case "half": return "折半";
+      case "self": return "自分が10割負担";
+      case "other": return "全額相手負担";
+      default: return method;
+    }
+  };
+
   return (
     <div className="pb-10 bg-white">
       {/* Header */}
@@ -154,7 +163,7 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
               精算ステータス
             </p>
             <p className={`text-sm font-semibold ${isSettled ? "text-gray-500" : "text-blue-800"}`}>
-              {isSettled ? "精算済み（編集不可）" : `${receipt.payment_method}で精算予定`}
+              {isSettled ? "精算済み（編集不可）" : `${getPaymentMethodLabel(receipt.payment_method)}で精算予定`}
             </p>
           </div>
           {receipt.payer && (
@@ -250,9 +259,9 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
                 onChange={(e) => setReceipt({...receipt, payment_method: e.target.value})}
                 disabled={!canEdit}
               >
-                <option>折半</option>
-                <option>自分が10割負担</option>
-                <option>全額相手負担</option>
+                <option value="half">折半</option>
+                <option value="self">自分が10割負担</option>
+                <option value="other">全額相手負担</option>
               </select>
             </div>
           </div>

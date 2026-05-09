@@ -22,7 +22,7 @@ export default function Register() {
     item: "",
     amount: 0,
     payer_id: 0,
-    payment_method: "折半",
+    payment_method: "half",
   });
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
@@ -269,9 +269,9 @@ export default function Register() {
                 value={formData.payment_method}
                 onChange={(e) => setFormData({...formData, payment_method: e.target.value})}
               >
-                <option>折半</option>
-                <option>自分が10割負担</option>
-                <option>全額相手負担</option>
+                <option value="half">折半</option>
+                <option value="self">自分が10割負担</option>
+                <option value="other">全額相手負担</option>
               </select>
             </div>
           </div>

@@ -52,6 +52,13 @@ type Receipt struct {
 	Payer User  `gorm:"foreignKey:PayerID" json:"payer"`
 }
 
+// Payment Methods
+const (
+	PaymentMethodHalf  = "half"  // 折半
+	PaymentMethodSelf  = "self"  // 自分が10割負担
+	PaymentMethodOther = "other" // 全額相手負担
+)
+
 // Settlement 精算情報
 type Settlement struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`

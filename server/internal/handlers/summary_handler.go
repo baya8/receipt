@@ -74,11 +74,11 @@ func GetMonthlySummary(c *gin.Context) {
 
 		// 精算方法に応じた負担額の計算
 		switch r.PaymentMethod {
-		case "自分が10割負担", "自分が10割":
+		case models.PaymentMethodSelf:
 			// 支払者が全額負担
 			shareMap[r.PayerID] += r.Amount
 
-		case "全額相手負担":
+		case models.PaymentMethodOther:
 			// 支払者以外で均等に負担（2人以上の場合に対応）
 			otherCount := len(group.Members) - 1
 			if otherCount > 0 {
@@ -100,7 +100,7 @@ func GetMonthlySummary(c *gin.Context) {
 				shareMap[r.PayerID] += r.Amount
 			}
 
-		case "折半":
+		case models.PaymentMethodHalf:
 			fallthrough
 		default:
 			// メンバー全員で均等割り
@@ -112,7 +112,7 @@ func GetMonthlySummary(c *gin.Context) {
 				for _, m := range group.Members {
 					shareMap[m.ID] += sharePerPerson
 				}
-				// 端数は支払者が負担（または誰か一人に寄せる）
+				// 端数は支払者が負担
 				shareMap[r.PayerID] += remainder
 			}
 		}

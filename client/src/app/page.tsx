@@ -81,6 +81,15 @@ export default function Home() {
     return colors[userId % colors.length];
   };
 
+  const getPaymentMethodLabel = (method: string) => {
+    switch (method) {
+      case "half": return "折半";
+      case "self": return "自分が10割負担";
+      case "other": return "全額相手負担";
+      default: return method;
+    }
+  };
+
   if (loading) return <div className="p-8 text-center text-gray-400">読み込み中...</div>;
 
   if (groups.length === 0) {
@@ -140,11 +149,11 @@ export default function Home() {
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-xs text-gray-500 font-medium">{new Date(receipt.date).toLocaleDateString()}</span>
                   <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-                    receipt.payment_method === "折半" ? "bg-orange-100 text-orange-600" :
-                    receipt.payment_method === "全額相手負担" ? "bg-green-100 text-green-600" :
+                    receipt.payment_method === "half" ? "bg-orange-100 text-orange-600" :
+                    receipt.payment_method === "other" ? "bg-green-100 text-green-600" :
                     "bg-gray-100 text-gray-600"
                   }`}>
-                    {receipt.payment_method}
+                    {getPaymentMethodLabel(receipt.payment_method)}
                   </span>
                   {receipt.payer && (
                     <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${getPayerColor(receipt.payer_id)}`}>
