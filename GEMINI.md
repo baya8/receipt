@@ -8,6 +8,7 @@
 ### インフラ・ベース構成
 - **モノレポ構成**: `client/` (Next.js), `server/` (Go) のディレクトリ構成を構築。
 - **Docker**: MySQL 8.0 と Go サーバーのコンテナ環境を整備。
+- **クライアントの Docker 化**: Next.js (Standalone モード) を Docker 化し、`compose.yml` に統合。ビルド引数で API URL を切り替え可能。
 - **外部アクセス設定**: スマホ実機テスト用に `next.config.ts` でホストを許可し、サーバー側で CORS 設定を拡張。
 
 ### バックエンド (Go / Gin / GORM)
