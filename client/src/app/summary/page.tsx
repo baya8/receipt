@@ -172,15 +172,15 @@ export default function Summary() {
   return (
     <div className="pb-10">
       <header className="p-4 border-b border-gray-100 bg-white sticky top-0 z-10 flex justify-between items-center">
-        <button onClick={() => changeMonth(-1)} className="p-2 hover:bg-gray-100 rounded-full">
-          <ChevronLeft size={20} />
+        <button onClick={() => changeMonth(-1)} className="p-2 hover:bg-gray-100 active:bg-gray-200 rounded-full transition-colors">
+          <ChevronLeft size={24} className="text-gray-900" strokeWidth={2.5} />
         </button>
         <div className="text-center">
           <h1 className="text-lg font-bold text-gray-800">{year}年{month}月</h1>
           <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{groups[0].name}</p>
         </div>
-        <button onClick={() => changeMonth(1)} className="p-2 hover:bg-gray-100 rounded-full">
-          <ChevronRight size={20} />
+        <button onClick={() => changeMonth(1)} className="p-2 hover:bg-gray-100 active:bg-gray-200 rounded-full transition-colors">
+          <ChevronRight size={24} className="text-gray-900" strokeWidth={2.5} />
         </button>
       </header>
 

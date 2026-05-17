@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { ChevronRight, PlusCircle, ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { apiRequest } from "@/lib/api";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 interface Receipt {
   id: string;
@@ -24,15 +24,20 @@ interface Group {
   name: string;
 }
 
-export default function Home() {
+function HomeContent() {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [loading, setLoading] = useState(true);
   const [groups, setGroups] = useState<Group[]>([]);
-  const [date, setDate] = useState(new Date());
   const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const year = date.getFullYear();
-  const month = date.getMonth() + 1;
+  // URLパラメータから年月を取得、なければ現在の年月を使用
+  const queryYear = searchParams.get("year");
+  const queryMonth = searchParams.get("month");
+  
+  const now = new Date();
+  const year = queryYear ? parseInt(queryYear) : now.getFullYear();
+  const month = queryMonth ? parseInt(queryMonth) : now.getMonth() + 1;
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -44,12 +49,10 @@ export default function Home() {
     async function fetchData() {
       setLoading(true);
       try {
-        // 1. 自分が所属するグループを取得
         const myGroups = await apiRequest("/api/groups");
         setGroups(myGroups);
 
         if (myGroups.length > 0) {
-          // 2. 年月でフィルタリングしてレシートを取得
           const data = await apiRequest(`/api/receipts?group_id=${myGroups[0].id}&year=${year}&month=${month}`);
           setReceipts(data);
         }
@@ -63,9 +66,13 @@ export default function Home() {
   }, [router, year, month]);
 
   const changeMonth = (offset: number) => {
-    const newDate = new Date(date);
-    newDate.setMonth(newDate.getMonth() + offset);
-    setDate(newDate);
+    const date = new Date(year, month - 1);
+    date.setMonth(date.getMonth() + offset);
+    const newYear = date.getFullYear();
+    const newMonth = date.getMonth() + 1;
+    
+    // URLを更新
+    router.push(`/?year=${newYear}&month=${newMonth}`);
   };
 
   const totalAmount = receipts.reduce((sum, r) => sum + r.amount, 0);
@@ -78,7 +85,6 @@ export default function Home() {
       "bg-indigo-50 text-indigo-600 border-indigo-100",
       "bg-cyan-50 text-cyan-600 border-cyan-100",
     ];
-    // UUIDを数値に変換して色を決定（簡易的なハッシュ）
     let hash = 0;
     for (let i = 0; i < userId.length; i++) {
       hash = userId.charCodeAt(i) + ((hash << 5) - hash);
@@ -121,15 +127,15 @@ export default function Home() {
     <div>
       {/* Header */}
       <header className="sticky top-0 bg-white border-b border-gray-100 p-4 flex justify-between items-center z-10 shadow-sm">
-        <button onClick={() => changeMonth(-1)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-          <ChevronLeft size={20} className="text-gray-600" />
+        <button onClick={() => changeMonth(-1)} className="p-2 hover:bg-gray-100 active:bg-gray-200 rounded-full transition-colors">
+          <ChevronLeft size={24} className="text-gray-900" strokeWidth={2.5} />
         </button>
         <div className="text-center">
           <h1 className="text-lg font-bold text-gray-800">{year}年{month}月</h1>
           <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{groups[0].name}</p>
         </div>
-        <button onClick={() => changeMonth(1)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-          <ChevronRight size={20} className="text-gray-600" />
+        <button onClick={() => changeMonth(1)} className="p-2 hover:bg-gray-100 active:bg-gray-200 rounded-full transition-colors">
+          <ChevronRight size={24} className="text-gray-900" strokeWidth={2.5} />
         </button>
       </header>
 
@@ -180,5 +186,13 @@ export default function Home() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-gray-400">読み込み中...</div>}>
+      <HomeContent />
+    </Suspense>
   );
 }
