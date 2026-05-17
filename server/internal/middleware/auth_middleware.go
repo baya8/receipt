@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 func AuthMiddleware() gin.HandlerFunc {
@@ -46,11 +47,23 @@ func AuthMiddleware() gin.HandlerFunc {
 		}
 
 		// ユーザーIDをコンテキストに保存
-		userID := uint(claims["user_id"].(float64))
+		userIDStr, ok := claims["user_id"].(string)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user_id in token"})
+			c.Abort()
+			return
+		}
+
+		userID, err := uuid.Parse(userIDStr)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user_id format"})
+			c.Abort()
+			return
+		}
 
 		// データベースにユーザーが存在するか確認
 		var user models.User
-		if err := config.DB.First(&user, userID).Error; err != nil {
+		if err := config.DB.First(&user, "id = ?", userID).Error; err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "User no longer exists"})
 			c.Abort()
 			return

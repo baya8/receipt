@@ -8,17 +8,17 @@ import { apiRequest } from "@/lib/api";
 import { toast } from "sonner";
 
 interface Receipt {
-  id: number;
-  user_id: number;
+  id: string;
+  user_id: string;
   date: string;
   settlement_year: number;
   settlement_month: number;
   shop: string;
   item: string;
   amount: number;
-  payer_id: number;
+  payer_id: string;
   payment_method: string;
-  group_id: number;
+  group_id: string;
   settled_at: string | null;
   payer?: {
     nickname: string;
@@ -31,7 +31,7 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem("token");

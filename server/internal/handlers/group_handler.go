@@ -1,12 +1,12 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
 	"receipt/server/config"
 	"receipt/server/internal/models"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -26,12 +26,13 @@ func CreateGroup(c *gin.Context) {
 		return
 	}
 
-	userID, _ := c.Get("userID")
+	userIDVal, _ := c.Get("userID")
+	userID := userIDVal.(uuid.UUID)
 
 	// グループ作成
 	group := models.Group{
 		Name:    input.Name,
-		OwnerID: userID.(uint),
+		OwnerID: userID,
 	}
 
 	if err := config.DB.Create(&group).Error; err != nil {
@@ -41,7 +42,7 @@ func CreateGroup(c *gin.Context) {
 
 	// 作成者をメンバーとして追加
 	var user models.User
-	config.DB.First(&user, userID)
+	config.DB.First(&user, "id = ?", userID)
 	config.DB.Model(&group).Association("Members").Append(&user)
 
 	c.JSON(http.StatusOK, group)
@@ -54,7 +55,8 @@ type InviteMemberInput struct {
 // InviteMember メンバーを招待
 func InviteMember(c *gin.Context) {
 	groupID := c.Param("id")
-	userID, _ := c.Get("userID")
+	userIDVal, _ := c.Get("userID")
+	userID := userIDVal.(uuid.UUID)
 
 	var input InviteMemberInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -63,13 +65,13 @@ func InviteMember(c *gin.Context) {
 	}
 
 	var group models.Group
-	if err := config.DB.First(&group, groupID).Error; err != nil {
+	if err := config.DB.First(&group, "id = ?", groupID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Group not found"})
 		return
 	}
 
 	// 権限チェック (管理者のみ招待可能)
-	if group.OwnerID != userID.(uint) {
+	if group.OwnerID != userID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Only group owner can invite members"})
 		return
 	}
@@ -100,28 +102,29 @@ func InviteMember(c *gin.Context) {
 func RemoveMember(c *gin.Context) {
 	groupID := c.Param("id")
 	memberID := c.Param("userId")
-	userID, _ := c.Get("userID")
+	userIDVal, _ := c.Get("userID")
+	userID := userIDVal.(uuid.UUID)
 
 	var group models.Group
-	if err := config.DB.First(&group, groupID).Error; err != nil {
+	if err := config.DB.First(&group, "id = ?", groupID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Group not found"})
 		return
 	}
 
 	// 権限チェック (管理者のみ削除可能。ただし自分自身が脱退する場合は許可しても良いが、一旦要件に従う)
-	if group.OwnerID != userID.(uint) {
+	if group.OwnerID != userID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Only group owner can remove members"})
 		return
 	}
 
 	// オーナー自身は削除できない（別のオーナーを立てる機能が必要になるため）
-	if memberID == fmt.Sprintf("%d", group.OwnerID) {
+	if memberID == group.OwnerID.String() {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Owner cannot be removed from the group"})
 		return
 	}
 
 	var userToRemove models.User
-	if err := config.DB.First(&userToRemove, memberID).Error; err != nil {
+	if err := config.DB.First(&userToRemove, "id = ?", memberID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User to remove not found"})
 		return
 	}
@@ -136,7 +139,8 @@ func RemoveMember(c *gin.Context) {
 
 // GetMyGroups 自分が所属するグループ一覧取得
 func GetMyGroups(c *gin.Context) {
-	userID, _ := c.Get("userID")
+	userIDVal, _ := c.Get("userID")
+	userID := userIDVal.(uuid.UUID)
 	
 	var groups []models.Group
 	// 自分がメンバーに含まれるグループを取得
@@ -156,7 +160,8 @@ func GetMyGroups(c *gin.Context) {
 // UpdateGroup グループ情報更新 (名前変更)
 func UpdateGroup(c *gin.Context) {
 	groupID := c.Param("id")
-	userID, _ := c.Get("userID")
+	userIDVal, _ := c.Get("userID")
+	userID := userIDVal.(uuid.UUID)
 
 	var input UpdateGroupInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -165,13 +170,13 @@ func UpdateGroup(c *gin.Context) {
 	}
 
 	var group models.Group
-	if err := config.DB.First(&group, groupID).Error; err != nil {
+	if err := config.DB.First(&group, "id = ?", groupID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Group not found"})
 		return
 	}
 
 	// 権限チェック (管理者のみ変更可能)
-	if group.OwnerID != userID.(uint) {
+	if group.OwnerID != userID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Only group owner can update group info"})
 		return
 	}
@@ -188,16 +193,17 @@ func UpdateGroup(c *gin.Context) {
 // DeleteGroup グループ削除
 func DeleteGroup(c *gin.Context) {
 	groupID := c.Param("id")
-	userID, _ := c.Get("userID")
+	userIDVal, _ := c.Get("userID")
+	userID := userIDVal.(uuid.UUID)
 
 	var group models.Group
-	if err := config.DB.First(&group, groupID).Error; err != nil {
+	if err := config.DB.First(&group, "id = ?", groupID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Group not found"})
 		return
 	}
 
 	// 権限チェック (管理者のみ削除可能)
-	if group.OwnerID != userID.(uint) {
+	if group.OwnerID != userID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Only group owner can delete group"})
 		return
 	}

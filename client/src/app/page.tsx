@@ -7,20 +7,20 @@ import { apiRequest } from "@/lib/api";
 import { useRouter } from "next/navigation";
 
 interface Receipt {
-  id: number;
+  id: string;
   date: string;
   shop: string;
   item: string;
   amount: number;
   payment_method: string;
-  payer_id: number;
+  payer_id: string;
   payer?: {
     nickname: string;
   };
 }
 
 interface Group {
-  id: number;
+  id: string;
   name: string;
 }
 
@@ -70,7 +70,7 @@ export default function Home() {
 
   const totalAmount = receipts.reduce((sum, r) => sum + r.amount, 0);
 
-  const getPayerColor = (userId: number) => {
+  const getPayerColor = (userId: string) => {
     const colors = [
       "bg-blue-50 text-blue-600 border-blue-100",
       "bg-purple-50 text-purple-600 border-purple-100",
@@ -78,7 +78,12 @@ export default function Home() {
       "bg-indigo-50 text-indigo-600 border-indigo-100",
       "bg-cyan-50 text-cyan-600 border-cyan-100",
     ];
-    return colors[userId % colors.length];
+    // UUIDを数値に変換して色を決定（簡易的なハッシュ）
+    let hash = 0;
+    for (let i = 0; i < userId.length; i++) {
+      hash = userId.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
   };
 
   const getPaymentMethodLabel = (method: string) => {

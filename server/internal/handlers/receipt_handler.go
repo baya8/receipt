@@ -8,17 +8,18 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type CreateReceiptInput struct {
-	GroupID         uint      `json:"group_id" binding:"required"`
+	GroupID         uuid.UUID `json:"group_id" binding:"required"`
 	Date            time.Time `json:"date" binding:"required"`
 	SettlementYear  int       `json:"settlement_year"`
 	SettlementMonth int       `json:"settlement_month"`
 	Shop            string    `json:"shop"`
 	Item            string    `json:"item"`
 	Amount          int       `json:"amount" binding:"required"`
-	PayerID         uint      `json:"payer_id" binding:"required"`
+	PayerID         uuid.UUID `json:"payer_id" binding:"required"`
 	PaymentMethod   string    `json:"payment_method" binding:"required"`
 }
 
@@ -29,7 +30,12 @@ func GetReceipts(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "group_id is required"})
 		return
 	}
-	groupID, _ := strconv.Atoi(groupIDStr)
+	
+	groupID, err := uuid.Parse(groupIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid group_id format"})
+		return
+	}
 
 	yearStr := c.Query("year")
 	monthStr := c.Query("month")
@@ -64,7 +70,8 @@ func CreateReceipt(c *gin.Context) {
 		return
 	}
 
-	userID, _ := c.Get("userID")
+	userIDVal, _ := c.Get("userID")
+	userID := userIDVal.(uuid.UUID)
 
 	// 精算月が指定されていない場合は購入日から設定
 	settlementYear := input.SettlementYear
@@ -76,7 +83,7 @@ func CreateReceipt(c *gin.Context) {
 
 	receipt := models.Receipt{
 		GroupID:         input.GroupID,
-		UserID:          userID.(uint),
+		UserID:          userID,
 		Date:            input.Date,
 		SettlementYear:  settlementYear,
 		SettlementMonth: settlementMonth,
@@ -99,7 +106,7 @@ func CreateReceipt(c *gin.Context) {
 func GetReceipt(c *gin.Context) {
 	id := c.Param("id")
 	var receipt models.Receipt
-	if err := config.DB.Preload("Payer").First(&receipt, id).Error; err != nil {
+	if err := config.DB.Preload("Payer").First(&receipt, "id = ?", id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Receipt not found"})
 		return
 	}
@@ -110,16 +117,17 @@ func GetReceipt(c *gin.Context) {
 // UpdateReceipt レシート更新
 func UpdateReceipt(c *gin.Context) {
 	id := c.Param("id")
-	userID, _ := c.Get("userID")
+	userIDVal, _ := c.Get("userID")
+	userID := userIDVal.(uuid.UUID)
 
 	var receipt models.Receipt
-	if err := config.DB.First(&receipt, id).Error; err != nil {
+	if err := config.DB.First(&receipt, "id = ?", id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Receipt not found"})
 		return
 	}
 
 	// 登録者本人かチェック
-	if receipt.UserID != userID.(uint) {
+	if receipt.UserID != userID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Only the creator can update this receipt"})
 		return
 	}
@@ -169,16 +177,17 @@ func UpdateReceipt(c *gin.Context) {
 // DeleteReceipt レシート削除
 func DeleteReceipt(c *gin.Context) {
 	id := c.Param("id")
-	userID, _ := c.Get("userID")
+	userIDVal, _ := c.Get("userID")
+	userID := userIDVal.(uuid.UUID)
 
 	var receipt models.Receipt
-	if err := config.DB.First(&receipt, id).Error; err != nil {
+	if err := config.DB.First(&receipt, "id = ?", id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Receipt not found"})
 		return
 	}
 
 	// 登録者本人かチェック
-	if receipt.UserID != userID.(uint) {
+	if receipt.UserID != userID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Only the creator can delete this receipt"})
 		return
 	}

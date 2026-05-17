@@ -8,15 +8,15 @@ import { useApi } from "@/lib/ApiContext";
 import { toast } from "sonner";
 
 interface UserInfo {
-  id: number;
+  id: string;
   email: string;
   nickname: string;
 }
 
 interface GroupInfo {
-  id: number;
+  id: string;
   name: string;
-  owner_id: number;
+  owner_id: string;
   members: UserInfo[];
 }
 

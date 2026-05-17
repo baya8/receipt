@@ -8,16 +8,16 @@ import Link from "next/link";
 import { toast } from "sonner";
 
 interface MemberSummary {
-  user_id: number;
+  user_id: string;
   nickname: string;
   paid: number;
   share: number;
 }
 
 interface Settlement {
-  id: number;
+  id: string;
   amount: number;
-  settled_by: number;
+  settled_by: string;
   created_at: string;
   settled_by_user: {
     nickname: string;
@@ -31,7 +31,7 @@ interface SummaryData {
 }
 
 interface Group {
-  id: number;
+  id: string;
   name: string;
 }
 
@@ -66,11 +66,11 @@ export default function Summary() {
           
           // 残高を計算してデフォルトの精算額にセット
           const user = JSON.parse(localStorage.getItem("user") || "{}");
-          const mySum = data.members.find((m: any) => m.user_id === user.id);
+          const mySum = data.members.find((m: MemberSummary) => m.user_id === user.id);
           const initialBalance = mySum ? Math.max(0, mySum.share - mySum.paid) : 0;
           const totalSettledByMe = data.settlements
-            .filter((s: any) => s.settled_by === user.id)
-            .reduce((sum: number, s: any) => sum + s.amount, 0);
+            .filter((s: Settlement) => s.settled_by === user.id)
+            .reduce((sum: number, s: Settlement) => sum + s.amount, 0);
           setSettleAmount(Math.max(0, initialBalance - totalSettledByMe));
         }
       } catch (err) {

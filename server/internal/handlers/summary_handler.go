@@ -8,13 +8,14 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type MemberSummary struct {
-	UserID   uint   `json:"user_id"`
-	Nickname string `json:"nickname"`
-	Paid     int    `json:"paid"`  // 実際に支払った合計
-	Share    int    `json:"share"` // 負担すべき合計
+	UserID   uuid.UUID `json:"user_id"`
+	Nickname string    `json:"nickname"`
+	Paid     int       `json:"paid"`  // 実際に支払った合計
+	Share    int       `json:"share"` // 負担すべき合計
 }
 
 type MonthlySummaryResponse struct {
@@ -24,10 +25,10 @@ type MonthlySummaryResponse struct {
 }
 
 type CreateSettlementInput struct {
-	GroupID uint `json:"group_id" binding:"required"`
-	Year    int  `json:"year" binding:"required"`
-	Month   int  `json:"month" binding:"required"`
-	Amount  int  `json:"amount" binding:"required"`
+	GroupID uuid.UUID `json:"group_id" binding:"required"`
+	Year    int       `json:"year" binding:"required"`
+	Month   int       `json:"month" binding:"required"`
+	Amount  int       `json:"amount" binding:"required"`
 }
 
 // GetMonthlySummary 月次サマリーの取得
@@ -41,13 +42,17 @@ func GetMonthlySummary(c *gin.Context) {
 		return
 	}
 
-	groupID, _ := strconv.Atoi(groupIDStr)
+	groupID, err := uuid.Parse(groupIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid group_id format"})
+		return
+	}
 	year, _ := strconv.Atoi(yearStr)
 	month, _ := strconv.Atoi(monthStr)
 
 	// グループメンバーの取得
 	var group models.Group
-	if err := config.DB.Preload("Members").First(&group, groupID).Error; err != nil {
+	if err := config.DB.Preload("Members").First(&group, "id = ?", groupID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Group not found"})
 		return
 	}
@@ -64,8 +69,8 @@ func GetMonthlySummary(c *gin.Context) {
 	config.DB.Where("group_id = ? AND settlement_year = ? AND settlement_month = ?", groupID, year, month).Find(&receipts)
 
 	// 集計用マップ
-	paidMap := make(map[uint]int)
-	shareMap := make(map[uint]int)
+	paidMap := make(map[uuid.UUID]int)
+	shareMap := make(map[uuid.UUID]int)
 	totalSpent := 0
 
 	for _, r := range receipts {
@@ -149,7 +154,8 @@ func CreateSettlement(c *gin.Context) {
 		return
 	}
 
-	userID, _ := c.Get("userID")
+	userIDVal, _ := c.Get("userID")
+	userID := userIDVal.(uuid.UUID)
 
 	// 今回はフロントエンドでの制限を主とし、バックエンドでは単純な記録を行う
 	// (実運用ではより厳密な残高チェックが必要)
@@ -159,7 +165,7 @@ func CreateSettlement(c *gin.Context) {
 		Year:      input.Year,
 		Month:     input.Month,
 		Amount:    input.Amount,
-		SettledBy: userID.(uint),
+		SettledBy: userID,
 	}
 
 	// トランザクションで処理
@@ -185,3 +191,4 @@ func CreateSettlement(c *gin.Context) {
 
 	c.JSON(http.StatusOK, settlement)
 }
+

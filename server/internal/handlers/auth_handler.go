@@ -7,6 +7,7 @@ import (
 	"receipt/server/internal/utils"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type RegisterInput struct {
@@ -79,10 +80,11 @@ func Login(c *gin.Context) {
 
 // GetMe 現在のユーザー情報取得
 func GetMe(c *gin.Context) {
-	userID, _ := c.Get("userID")
+	userIDVal, _ := c.Get("userID")
+	userID := userIDVal.(uuid.UUID)
 
 	var user models.User
-	if err := config.DB.First(&user, userID).Error; err != nil {
+	if err := config.DB.First(&user, "id = ?", userID).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User record not found"})
 		return
 	}
@@ -98,7 +100,8 @@ type UpdateMeInput struct {
 
 // UpdateMe ユーザー情報更新
 func UpdateMe(c *gin.Context) {
-	userID, _ := c.Get("userID")
+	userIDVal, _ := c.Get("userID")
+	userID := userIDVal.(uuid.UUID)
 
 	var input UpdateMeInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -107,7 +110,7 @@ func UpdateMe(c *gin.Context) {
 	}
 
 	var user models.User
-	if err := config.DB.First(&user, userID).Error; err != nil {
+	if err := config.DB.First(&user, "id = ?", userID).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User record not found for update"})
 		return
 	}

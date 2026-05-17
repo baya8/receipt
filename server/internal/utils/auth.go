@@ -3,6 +3,7 @@ package utils
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -22,9 +23,9 @@ func CheckPasswordHash(password, hash string) bool {
 }
 
 // GenerateToken JWTトークンを生成する
-func GenerateToken(userID uint) (string, error) {
+func GenerateToken(userID uuid.UUID) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"user_id": userID,
+		"user_id": userID.String(),
 		"exp":     time.Now().Add(time.Hour * 24).Unix(), // 24時間有効
 	})
 	return token.SignedString(JwtKey)
