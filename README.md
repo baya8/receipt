@@ -87,3 +87,30 @@ receipt/
 - グループ管理
   - グループの作成、メンバーの招待、メンバーの削除
 - ログアウト
+
+# セットアップと開発
+
+## 環境準備
+
+1. **環境変数の設定**
+   プロジェクトルートに `.env` ファイルを作成し、以下の内容を設定してください。
+   ```text
+   GOOGLE_API_KEY=あなたのGemini_APIキー
+   ```
+   ※ API キーは [Google AI Studio](https://aistudio.google.com/app/apikey) で取得可能です。
+
+2. **起動**
+   ```bash
+   docker compose up -d
+   ```
+   - フロントエンド: http://localhost:3000
+   - バックエンド: http://localhost:8080
+
+## スマホからの接続
+
+開発PCと同じ Wi-Fi に接続したスマホからテストする場合：
+
+1. 開発PCの IP アドレス（例: `192.168.50.18`）を調べます。
+2. `compose.yml` の `client` サービスの `ALLOWED_DEV_ORIGINS` 環境変数にその IP を追加します。
+3. `client/next.config.ts` の `allowedDevOrigins` にも同様に追記します。
+4. スマホのブラウザから `http://192.168.50.18:3000` にアクセスします。

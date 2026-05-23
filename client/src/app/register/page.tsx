@@ -8,7 +8,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 
 interface Group {
-  id: number;
+  id: string;
   name: string;
 }
 
@@ -21,7 +21,7 @@ export default function Register() {
     shop: "",
     item: "",
     amount: 0,
-    payer_id: 0,
+    payer_id: "",
     payment_method: "half",
   });
   const [loading, setLoading] = useState(false);
@@ -118,7 +118,7 @@ export default function Register() {
           ...formData,
           amount: Number(formData.amount),
           group_id: groups[0].id,
-          payer_id: user.id || 0,
+          payer_id: user.id || "",
           date: new Date(formData.date).toISOString(),
           settlement_year: sYear,
           settlement_month: sMonth,

@@ -89,7 +89,7 @@ export default function Profile() {
     }
   };
 
-  const handleUpdateGroup = async (groupId: number, currentName: string) => {
+  const handleUpdateGroup = async (groupId: string, currentName: string) => {
     const newName = prompt("グループの名前を変更します", currentName);
     if (!newName || newName === currentName) return;
 
@@ -107,7 +107,7 @@ export default function Profile() {
     }
   };
 
-  const handleDeleteGroup = async (groupId: number, groupName: string) => {
+  const handleDeleteGroup = async (groupId: string, groupName: string) => {
     if (!confirm(`グループ「${groupName}」を削除しますか？\n(関連するすべてのレシートと精算履歴も削除されます)`)) return;
 
     try {
@@ -141,7 +141,7 @@ export default function Profile() {
     }
   };
 
-  const handleInvite = async (groupId: number) => {
+  const handleInvite = async (groupId: string) => {
     if (!inviteEmail) return;
     setInviting(true);
     try {
@@ -161,7 +161,7 @@ export default function Profile() {
     }
   };
 
-  const handleRemoveMember = async (groupId: number, memberId: number) => {
+  const handleRemoveMember = async (groupId: string, memberId: string) => {
     if (!confirm("本当にこのメンバーをグループから削除しますか？")) return;
     try {
       await apiRequest(`/api/groups/${groupId}/members/${memberId}`, {

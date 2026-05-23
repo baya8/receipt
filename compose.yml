@@ -1,4 +1,19 @@
 services:
+  traefik:
+    image: traefik:v2.11
+    container_name: receipt-proxy
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8081:8080" # ダッシュボード (http://localhost:8081)
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    restart: always
+
   db:
     image: mysql:8.0
     container_name: receipt-db
@@ -17,8 +32,7 @@ services:
   server:
     build: ./server
     container_name: receipt-server
-    ports:
-      - "8080:8080"
+    restart: always
     env_file:
       - .env
     environment:
@@ -28,17 +42,24 @@ services:
       - DB_NAME=receipt_db
     depends_on:
       - db
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.server.rule=PathPrefix(`/api`) || PathPrefix(`/auth`) || PathPrefix(`/ping`)"
+      - "traefik.http.services.server.loadbalancer.server.port=8080"
 
   client:
     build:
       context: ./client
       args:
-        - NEXT_PUBLIC_API_URL=http://localhost:8080
+        - NEXT_PUBLIC_API_URL=
     container_name: receipt-client
-    ports:
-      - "3000:3000"
+    restart: always
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8080
-      - ALLOWED_DEV_ORIGINS=192.168.50.18,localhost:3000
+      - NEXT_PUBLIC_API_URL=
     depends_on:
       - server
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.client.rule=PathPrefix(`/`)"
+      - "traefik.http.services.client.loadbalancer.server.port=3000"
+      - "traefik.http.routers.client.priority=1"

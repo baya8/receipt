@@ -1,4 +1,7 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+// NEXT_PUBLIC_API_URL が未指定の場合は空文字（相対パス）とする。
+// これにより、リバースプロキシ（Traefik等）経由で同ドメインから配信される場合に
+// 自動的に正しい宛先へリクエストが飛ぶようになる。
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
 export class ConnectionError extends Error {
   constructor(message: string = "サーバーに接続できません。サーバーが起動しているか確認してください。") {
