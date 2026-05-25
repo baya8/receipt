@@ -13,6 +13,9 @@
   - スマホ実機テスト用に `next.config.ts` でホストおよび `allowedDevOrigins` を許可。
   - バックエンド側で CORS 設定を拡張。
 - **環境変数管理**: `.env` ファイルによる API キー管理を導入し、`compose.yml` からの参照設定を完了。
+- **Dockerfile 最適化**: 
+  - Go サーバーにマルチステージビルドを導入し、イメージサイズを大幅に削減（約320MB → 85MB）。
+  - `.dockerignore` の整備によりビルド効率を向上。
 
 ### バックエンド (Go / Gin / GORM)
 - **DBモデル**: `users`, `groups`, `receipts`, `settlements` のテーブル定義。
@@ -47,4 +50,3 @@
    - 実機（iOS/Android ブラウザ）からのカメラ操作・アップロード検証。
 3. **ドキュメント・整理**
    - `README.md` の継続的な更新（現在の最新仕様は反映済み）。
-   - Dockerfile のマルチステージビルド最適化。
