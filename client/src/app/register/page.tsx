@@ -58,27 +58,19 @@ export default function Register() {
     if (!file) return;
 
     setAnalyzing(true);
-    const formData = new FormData();
-    formData.append("image", file);
+    const formDataBody = new FormData();
+    formDataBody.append("image", file);
 
     try {
-      const token = localStorage.getItem("token");
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-      
-      const response = await fetch(`${API_URL}/api/receipts/analyze`, {
+      // apiRequest を使用してマルチパートフォームデータを送信
+      // headers を渡さないことで、ブラウザが自動的に正しい Boundary を含む Content-Type を設定する
+      const data = await apiRequest("/api/receipts/analyze", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
+        body: formDataBody,
+        // Content-Type は FormData の場合に fetch が自動設定するため、apiRequest 内のデフォルトを上書きする必要がある
+        headers: {}, 
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Analysis failed");
-      }
-
-      const data = await response.json();
       setFormData((prev) => {
         const newDate = data.date || prev.date;
         return {

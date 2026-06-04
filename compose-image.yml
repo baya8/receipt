@@ -1,0 +1,8 @@
+services:
+  server:
+    image: ghcr.io/baya8/receipt-server:latest
+    build: !reset null
+
+  client:
+    image: ghcr.io/baya8/receipt-client:latest
+    build: !reset null

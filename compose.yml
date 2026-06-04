@@ -32,7 +32,7 @@ services:
       - receipt
 
   server:
-    image: ghcr.io/baya8/receipt-server:latest
+    build: ./server
     container_name: receipt-server
     restart: always
     env_file:
@@ -53,7 +53,7 @@ services:
       - "traefik.docker.network=receipt"
 
   client:
-    image: ghcr.io/baya8/receipt-client:latest
+    build: ./client
     container_name: receipt-client
     restart: always
     environment:
