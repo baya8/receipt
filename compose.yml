@@ -7,11 +7,14 @@ services:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
+      - "--providers.docker.network=receipt"
     ports:
       - "80:80"
       - "8081:8080" # ダッシュボード (http://localhost:8081)
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    networks:
+      - receipt
     restart: always
 
   db:
@@ -23,14 +26,17 @@ services:
       MYSQL_ROOT_PASSWORD: password
       MYSQL_USER: user
       MYSQL_PASSWORD: password
-    ports:
-      - "3306:3306"
+    # ホスト側のMySQLと衝突しないよう、外部公開ポートを削除
+    # ports:
+    #   - "3306:3306"
     volumes:
       - ./docker/mysql/data:/var/lib/mysql
       - ./docker/mysql/init:/docker-entrypoint-initdb.d
+    networks:
+      - receipt
 
   server:
-    build: ./server
+    image: ghcr.io/baya8/receipt-server:latest
     container_name: receipt-server
     restart: always
     env_file:
@@ -42,24 +48,31 @@ services:
       - DB_NAME=receipt_db
     depends_on:
       - db
+    networks:
+      - receipt
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.server.rule=PathPrefix(`/api`) || PathPrefix(`/auth`) || PathPrefix(`/ping`)"
       - "traefik.http.services.server.loadbalancer.server.port=8080"
+      - "traefik.docker.network=receipt"
 
   client:
-    build:
-      context: ./client
-      args:
-        - NEXT_PUBLIC_API_URL=
+    image: ghcr.io/baya8/receipt-client:latest
     container_name: receipt-client
     restart: always
     environment:
       - NEXT_PUBLIC_API_URL=
     depends_on:
       - server
+    networks:
+      - receipt
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.client.rule=PathPrefix(`/`)"
       - "traefik.http.services.client.loadbalancer.server.port=3000"
       - "traefik.http.routers.client.priority=1"
+      - "traefik.docker.network=receipt"
+
+networks:
+  receipt:
+    driver: bridge
