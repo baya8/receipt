@@ -22,7 +22,6 @@ jobs:
             context: ./server
           - image_suffix: client
             context: ./client
-            build-args: NEXT_PUBLIC_API_URL=http://localhost:8080
 
     steps:
       - name: Checkout repository
