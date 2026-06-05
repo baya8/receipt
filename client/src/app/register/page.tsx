@@ -62,13 +62,9 @@ export default function Register() {
     formDataBody.append("image", file);
 
     try {
-      // apiRequest を使用してマルチパートフォームデータを送信
-      // headers を渡さないことで、ブラウザが自動的に正しい Boundary を含む Content-Type を設定する
       const data = await apiRequest("/api/receipts/analyze", {
         method: "POST",
         body: formDataBody,
-        // Content-Type は FormData の場合に fetch が自動設定するため、apiRequest 内のデフォルトを上書きする必要がある
-        headers: {}, 
       });
 
       setFormData((prev) => {

@@ -13,11 +13,20 @@ export class ConnectionError extends Error {
 export async function apiRequest(path: string, options: RequestInit = {}) {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   
-  const headers = {
-    "Content-Type": "application/json",
+  const headers: Record<string, string> = {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...options.headers,
   };
+
+  // FormData の場合はブラウザが自動的に Content-Type (multipart/form-data + boundary) を設定するため、
+  // ここで明示的に設定してはいけない。
+  if (!(options.body instanceof FormData)) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  // 個別のヘッダー上書き
+  if (options.headers) {
+    Object.assign(headers, options.headers);
+  }
 
   try {
     const response = await fetch(`${API_URL}${path}`, {
