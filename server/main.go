@@ -7,6 +7,8 @@ import (
 	"receipt/server/config"
 	"receipt/server/internal/handlers"
 	"receipt/server/internal/middleware"
+	"receipt/server/internal/repository"
+	"receipt/server/internal/service"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -19,6 +21,24 @@ func main() {
 
 	// データベース初期化
 	config.InitDB()
+
+	// 依存関係の初期化 (DI)
+	userRepo := repository.NewUserRepository(config.DB)
+	userService := service.NewUserService(userRepo)
+	userHandler := handlers.NewUserHandler(userService)
+
+	groupRepo := repository.NewGroupRepository(config.DB)
+	groupService := service.NewGroupService(groupRepo, userRepo)
+	groupHandler := handlers.NewGroupHandler(groupService)
+
+	receiptRepo := repository.NewReceiptRepository(config.DB)
+	receiptService := service.NewReceiptService(receiptRepo)
+	aiAnalyzer := service.NewAIAnalyzer(os.Getenv("GOOGLE_API_KEY"))
+	receiptHandler := handlers.NewReceiptHandler(receiptService, aiAnalyzer)
+
+	settlementRepo := repository.NewSettlementRepository(config.DB)
+	summaryService := service.NewSummaryService(groupRepo, receiptRepo, settlementRepo)
+	summaryHandler := handlers.NewSummaryHandler(summaryService)
 
 	r := gin.Default()
 
@@ -39,32 +59,32 @@ func main() {
 	// 認証関連
 	auth := r.Group("/auth")
 	{
-		auth.POST("/register", handlers.Register)
-		auth.POST("/login", handlers.Login)
-		auth.GET("/me", middleware.AuthMiddleware(), handlers.GetMe)
-		auth.PUT("/me", middleware.AuthMiddleware(), handlers.UpdateMe)
+		auth.POST("/register", userHandler.Register)
+		auth.POST("/login", userHandler.Login)
+		auth.GET("/me", middleware.AuthMiddleware(), userHandler.GetMe)
+		auth.PUT("/me", middleware.AuthMiddleware(), userHandler.UpdateMe)
 	}
 
 	// レシート関連（認証必須）
 	api := r.Group("/api")
 	api.Use(middleware.AuthMiddleware())
 	{
-		api.GET("/receipts", handlers.GetReceipts)
-		api.POST("/receipts", handlers.CreateReceipt)
-		api.GET("/receipts/:id", handlers.GetReceipt)
-		api.PUT("/receipts/:id", handlers.UpdateReceipt)
-		api.DELETE("/receipts/:id", handlers.DeleteReceipt)
-		api.POST("/receipts/analyze", handlers.AnalyzeReceipt)
+		api.GET("/receipts", receiptHandler.GetReceipts)
+		api.POST("/receipts", receiptHandler.CreateReceipt)
+		api.GET("/receipts/:id", receiptHandler.GetReceipt)
+		api.PUT("/receipts/:id", receiptHandler.UpdateReceipt)
+		api.DELETE("/receipts/:id", receiptHandler.DeleteReceipt)
+		api.POST("/receipts/analyze", receiptHandler.AnalyzeReceipt)
 
-		api.GET("/groups", handlers.GetMyGroups)
-		api.POST("/groups", handlers.CreateGroup)
-		api.PUT("/groups/:id", handlers.UpdateGroup)
-		api.DELETE("/groups/:id", handlers.DeleteGroup)
-		api.POST("/groups/:id/invite", handlers.InviteMember)
-		api.DELETE("/groups/:id/members/:userId", handlers.RemoveMember)
+		api.GET("/groups", groupHandler.GetMyGroups)
+		api.POST("/groups", groupHandler.CreateGroup)
+		api.PUT("/groups/:id", groupHandler.UpdateGroup)
+		api.DELETE("/groups/:id", groupHandler.DeleteGroup)
+		api.POST("/groups/:id/invite", groupHandler.InviteMember)
+		api.DELETE("/groups/:id/members/:userId", groupHandler.RemoveMember)
 
-		api.GET("/summary", handlers.GetMonthlySummary)
-		api.POST("/settle", handlers.CreateSettlement)
+		api.GET("/summary", summaryHandler.GetMonthlySummary)
+		api.POST("/settle", summaryHandler.CreateSettlement)
 	}
 
 	// ヘルスチェック
