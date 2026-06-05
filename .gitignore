@@ -20,7 +20,7 @@ bin/
 # Environment files
 .env
 .env*
-!.env.example
+!.env.sample
 
 # OS files
 .DS_Store
