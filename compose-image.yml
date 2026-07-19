@@ -1,8 +1,8 @@
 services:
   server:
-    image: ghcr.io/baya8/receipt-server:latest
+    image: ghcr.io/baya8/receipt-server:${IMAGE_TAG}
     build: !reset null
 
   client:
-    image: ghcr.io/baya8/receipt-client:latest
+    image: ghcr.io/baya8/receipt-client:${IMAGE_TAG}
     build: !reset null
