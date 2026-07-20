@@ -1,4 +1,4 @@
-# プロジェクト進捗状況 (2026-05-17)
+# プロジェクト進捗状況 (2026-06-05)
 
 ## 概要
 夫婦間で生活費を共有・精算するスマホ向け Web アプリの開発。
@@ -28,6 +28,17 @@
 - **サマリー・精算**: 
   - 高度な精算ロジック、部分精算、履歴管理。
   - **バリデーション**: 精算額が 1 円以上であることを必須化。
+- **アーキテクチャリファクタリング（2026-06-05 完了）**:
+  - **Repository / Service / Handler の3層分離**を全ドメインに適用。
+  - **手動DI（コンストラクタ注入）** でテスタブルな構造に変更。
+  - **インターフェース定義**: `UserRepository`, `UserService`, `GroupRepository`, `GroupService`, `ReceiptRepository`, `ReceiptService`, `AIAnalyzer`, `SettlementRepository`, `SummaryService` を定義済み。
+  - **エラーハンドリング共通化**: `internal/handlers/errors.go` にサービスエラー→HTTPレスポンスのマッピングテーブルを集約。
+  - **単体テスト**: 各 Service の単体テストをモックリポジトリを使って実装済み（全27ケース PASS）。
+    - `server/internal/service/user_service_test.go`
+    - `server/internal/service/group_service_test.go`
+    - `server/internal/service/receipt_service_test.go`
+    - `server/internal/service/summary_service_test.go`
+  - **Gemini AI 解析**: `AIAnalyzer` インターフェースに抽象化し、`gemini_handler.go` を削除してハンドラーに統合済み。
 
 ### フロントエンド (Next.js / Tailwind CSS / sonner)
 - **UI/UX 改善**:
@@ -48,5 +59,8 @@
 2. **テストと検証**
    - 複数ユーザー（夫婦間）での「招待 〜 登録 〜 精算」のフルサイクル最終確認。
    - 実機（iOS/Android ブラウザ）からのカメラ操作・アップロード検証。
-3. **ドキュメント・整理**
+3. **バックエンドのさらなる品質向上**
+   - ハンドラー層の統合テスト（`httptest` を使ったエンドポイントテスト）の追加。
+   - `utils/auth.go` の `JwtKey` を環境変数から読み込む対応（現状はハードコード）。
+4. **ドキュメント・整理**
    - `README.md` の継続的な更新（現在の最新仕様は反映済み）。

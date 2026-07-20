@@ -1,9 +1,10 @@
 package handlers
 
 import (
+	"fmt"
+	"io"
 	"net/http"
-	"receipt/server/config"
-	"receipt/server/internal/models"
+	"receipt/server/internal/service"
 	"strconv"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// CreateReceiptInput レシート作成・更新用入力
 type CreateReceiptInput struct {
 	GroupID         uuid.UUID `json:"group_id" binding:"required"`
 	Date            time.Time `json:"date" binding:"required"`
@@ -23,14 +25,28 @@ type CreateReceiptInput struct {
 	PaymentMethod   string    `json:"payment_method" binding:"required"`
 }
 
+// ReceiptHandler レシート関連ハンドラー
+type ReceiptHandler struct {
+	receiptService service.ReceiptService
+	aiAnalyzer     service.AIAnalyzer
+}
+
+// NewReceiptHandler ReceiptHandlerを作成
+func NewReceiptHandler(rs service.ReceiptService, ai service.AIAnalyzer) *ReceiptHandler {
+	return &ReceiptHandler{
+		receiptService: rs,
+		aiAnalyzer:     ai,
+	}
+}
+
 // GetReceipts レシート一覧取得
-func GetReceipts(c *gin.Context) {
+func (h *ReceiptHandler) GetReceipts(c *gin.Context) {
 	groupIDStr := c.Query("group_id")
 	if groupIDStr == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "group_id is required"})
 		return
 	}
-	
+
 	groupID, err := uuid.Parse(groupIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid group_id format"})
@@ -40,17 +56,18 @@ func GetReceipts(c *gin.Context) {
 	yearStr := c.Query("year")
 	monthStr := c.Query("month")
 
-	db := config.DB.Preload("Payer").Where("group_id = ?", groupID)
-
+	var yearPtr *int
+	var monthPtr *int
 	if yearStr != "" && monthStr != "" {
 		year, _ := strconv.Atoi(yearStr)
 		month, _ := strconv.Atoi(monthStr)
-		db = db.Where("settlement_year = ? AND settlement_month = ?", year, month)
+		yearPtr = &year
+		monthPtr = &month
 	}
 
-	var receipts []models.Receipt
-	if err := db.Order("date desc").Find(&receipts).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch receipts"})
+	receipts, err := h.receiptService.GetReceipts(groupID, yearPtr, monthPtr)
+	if err != nil {
+		respondInternalError(c, "Failed to fetch receipts")
 		return
 	}
 
@@ -58,35 +75,21 @@ func GetReceipts(c *gin.Context) {
 }
 
 // CreateReceipt レシート登録
-func CreateReceipt(c *gin.Context) {
+func (h *ReceiptHandler) CreateReceipt(c *gin.Context) {
 	var input CreateReceiptInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if input.Amount <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "金額は1円以上にしてください"})
-		return
-	}
-
 	userIDVal, _ := c.Get("userID")
 	userID := userIDVal.(uuid.UUID)
 
-	// 精算月が指定されていない場合は購入日から設定
-	settlementYear := input.SettlementYear
-	settlementMonth := input.SettlementMonth
-	if settlementYear == 0 || settlementMonth == 0 {
-		settlementYear = input.Date.Year()
-		settlementMonth = int(input.Date.Month())
-	}
-
-	receipt := models.Receipt{
+	params := &service.CreateReceiptParams{
 		GroupID:         input.GroupID,
-		UserID:          userID,
 		Date:            input.Date,
-		SettlementYear:  settlementYear,
-		SettlementMonth: settlementMonth,
+		SettlementYear:  input.SettlementYear,
+		SettlementMonth: input.SettlementMonth,
 		Shop:            input.Shop,
 		Item:            input.Item,
 		Amount:          input.Amount,
@@ -94,8 +97,11 @@ func CreateReceipt(c *gin.Context) {
 		PaymentMethod:   input.PaymentMethod,
 	}
 
-	if err := config.DB.Create(&receipt).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create receipt"})
+	receipt, err := h.receiptService.CreateReceipt(params, userID)
+	if err != nil {
+		if !respondWithServiceError(c, err) {
+			respondInternalError(c, "Failed to create receipt")
+		}
 		return
 	}
 
@@ -103,11 +109,19 @@ func CreateReceipt(c *gin.Context) {
 }
 
 // GetReceipt レシート詳細取得
-func GetReceipt(c *gin.Context) {
-	id := c.Param("id")
-	var receipt models.Receipt
-	if err := config.DB.Preload("Payer").First(&receipt, "id = ?", id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Receipt not found"})
+func (h *ReceiptHandler) GetReceipt(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid receipt id"})
+		return
+	}
+
+	receipt, err := h.receiptService.GetReceipt(id)
+	if err != nil {
+		if !respondWithServiceError(c, err) {
+			respondInternalError(c, "Failed to get receipt")
+		}
 		return
 	}
 
@@ -115,28 +129,16 @@ func GetReceipt(c *gin.Context) {
 }
 
 // UpdateReceipt レシート更新
-func UpdateReceipt(c *gin.Context) {
-	id := c.Param("id")
+func (h *ReceiptHandler) UpdateReceipt(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid receipt id"})
+		return
+	}
+
 	userIDVal, _ := c.Get("userID")
 	userID := userIDVal.(uuid.UUID)
-
-	var receipt models.Receipt
-	if err := config.DB.First(&receipt, "id = ?", id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Receipt not found"})
-		return
-	}
-
-	// 登録者本人かチェック
-	if receipt.UserID != userID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Only the creator can update this receipt"})
-		return
-	}
-
-	// 精算済みチェック
-	if receipt.SettledAt != nil {
-		c.JSON(http.StatusForbidden, gin.H{"error": "精算済みのレシートは編集できません"})
-		return
-	}
 
 	var input CreateReceiptInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -144,30 +146,23 @@ func UpdateReceipt(c *gin.Context) {
 		return
 	}
 
-	if input.Amount <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "金額は1円以上にしてください"})
-		return
+	params := &service.CreateReceiptParams{
+		GroupID:         input.GroupID,
+		Date:            input.Date,
+		SettlementYear:  input.SettlementYear,
+		SettlementMonth: input.SettlementMonth,
+		Shop:            input.Shop,
+		Item:            input.Item,
+		Amount:          input.Amount,
+		PayerID:         input.PayerID,
+		PaymentMethod:   input.PaymentMethod,
 	}
 
-	// 精算月が指定されていない場合は購入日から設定
-	settlementYear := input.SettlementYear
-	settlementMonth := input.SettlementMonth
-	if settlementYear == 0 || settlementMonth == 0 {
-		settlementYear = input.Date.Year()
-		settlementMonth = int(input.Date.Month())
-	}
-
-	receipt.Date = input.Date
-	receipt.SettlementYear = settlementYear
-	receipt.SettlementMonth = settlementMonth
-	receipt.Shop = input.Shop
-	receipt.Item = input.Item
-	receipt.Amount = input.Amount
-	receipt.PayerID = input.PayerID
-	receipt.PaymentMethod = input.PaymentMethod
-
-	if err := config.DB.Save(&receipt).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update receipt"})
+	receipt, err := h.receiptService.UpdateReceipt(id, params, userID)
+	if err != nil {
+		if !respondWithServiceError(c, err) {
+			respondInternalError(c, "Failed to update receipt")
+		}
 		return
 	}
 
@@ -175,33 +170,53 @@ func UpdateReceipt(c *gin.Context) {
 }
 
 // DeleteReceipt レシート削除
-func DeleteReceipt(c *gin.Context) {
-	id := c.Param("id")
+func (h *ReceiptHandler) DeleteReceipt(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid receipt id"})
+		return
+	}
+
 	userIDVal, _ := c.Get("userID")
 	userID := userIDVal.(uuid.UUID)
 
-	var receipt models.Receipt
-	if err := config.DB.First(&receipt, "id = ?", id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Receipt not found"})
-		return
-	}
-
-	// 登録者本人かチェック
-	if receipt.UserID != userID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Only the creator can delete this receipt"})
-		return
-	}
-
-	// 精算済みチェック
-	if receipt.SettledAt != nil {
-		c.JSON(http.StatusForbidden, gin.H{"error": "精算済みのレシートは削除できません"})
-		return
-	}
-
-	if err := config.DB.Delete(&receipt).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete receipt"})
+	if err := h.receiptService.DeleteReceipt(id, userID); err != nil {
+		if !respondWithServiceError(c, err) {
+			respondInternalError(c, "Failed to delete receipt")
+		}
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Receipt deleted successfully"})
+}
+
+// AnalyzeReceipt レシートAI解析
+func (h *ReceiptHandler) AnalyzeReceipt(c *gin.Context) {
+	file, err := c.FormFile("image")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Image is required"})
+		return
+	}
+
+	src, err := file.Open()
+	if err != nil {
+		respondInternalError(c, "Failed to open image")
+		return
+	}
+	defer src.Close()
+
+	imgData, err := io.ReadAll(src)
+	if err != nil {
+		respondInternalError(c, "Failed to read image")
+		return
+	}
+
+	result, err := h.aiAnalyzer.AnalyzeReceipt(c.Request.Context(), imgData)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to analyze receipt: %v", err)})
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
 }
