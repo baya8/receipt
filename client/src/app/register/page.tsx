@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Camera, Save, Loader2, PlusCircle } from "lucide-react";
+import { Camera, ImagePlus, Save, Loader2, PlusCircle } from "lucide-react";
 import { apiRequest } from "@/lib/api";
+import { compressImage } from "@/lib/image";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -14,7 +15,8 @@ interface Group {
 
 export default function Register() {
   const router = useRouter();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     settlement_month: new Date().toISOString().slice(0, 7), // YYYY-MM
@@ -50,7 +52,11 @@ export default function Register() {
   }, [router]);
 
   const handleCameraClick = () => {
-    fileInputRef.current?.click();
+    cameraInputRef.current?.click();
+  };
+
+  const handleGalleryClick = () => {
+    galleryInputRef.current?.click();
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -58,10 +64,11 @@ export default function Register() {
     if (!file) return;
 
     setAnalyzing(true);
-    const formDataBody = new FormData();
-    formDataBody.append("image", file);
-
     try {
+      const uploadFile = await compressImage(file);
+      const formDataBody = new FormData();
+      formDataBody.append("image", uploadFile);
+
       const data = await apiRequest("/api/receipts/analyze", {
         method: "POST",
         body: formDataBody,
@@ -83,7 +90,7 @@ export default function Register() {
       toast.error("解析に失敗しました。手動で入力してください。");
     } finally {
       setAnalyzing(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      e.target.value = "";
     }
   };
 
@@ -155,33 +162,48 @@ export default function Register() {
 
       <div className="p-6 space-y-8">
         <section>
-          <input 
-            type="file" 
-            accept="image/*" 
-            capture="environment" 
-            className="hidden" 
-            ref={fileInputRef}
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            ref={cameraInputRef}
             onChange={handleFileChange}
           />
-          <button 
-            type="button"
-            onClick={handleCameraClick}
-            disabled={analyzing}
-            className="w-full aspect-video border-2 border-dashed border-blue-200 rounded-2xl bg-blue-50 flex flex-col items-center justify-center gap-2 text-blue-600 active:bg-blue-100 transition-colors disabled:opacity-50"
-          >
-            {analyzing ? (
-              <>
-                <Loader2 size={48} className="animate-spin text-blue-400" />
-                <span className="font-semibold text-blue-400">解析中...</span>
-              </>
-            ) : (
-              <>
-                <Camera size={48} strokeWidth={1.5} />
-                <span className="font-semibold">レシートを撮影して自動入力</span>
-                <span className="text-xs text-blue-400">Gemini AI が内容を読み取ります</span>
-              </>
-            )}
-          </button>
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            ref={galleryInputRef}
+            onChange={handleFileChange}
+          />
+
+          {analyzing ? (
+            <div className="w-full aspect-video border-2 border-dashed border-blue-200 rounded-2xl bg-blue-50 flex flex-col items-center justify-center gap-2 text-blue-600">
+              <Loader2 size={48} className="animate-spin text-blue-400" />
+              <span className="font-semibold text-blue-400">解析中...</span>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={handleCameraClick}
+                className="aspect-square border-2 border-dashed border-blue-200 rounded-2xl bg-blue-50 flex flex-col items-center justify-center gap-2 text-blue-600 active:bg-blue-100 transition-colors"
+              >
+                <Camera size={40} strokeWidth={1.5} />
+                <span className="font-semibold text-sm">撮影する</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleGalleryClick}
+                className="aspect-square border-2 border-dashed border-blue-200 rounded-2xl bg-blue-50 flex flex-col items-center justify-center gap-2 text-blue-600 active:bg-blue-100 transition-colors"
+              >
+                <ImagePlus size={40} strokeWidth={1.5} />
+                <span className="font-semibold text-sm">アルバムから選択</span>
+              </button>
+            </div>
+          )}
+          <p className="text-xs text-blue-400 text-center mt-2">Gemini AI が内容を読み取ります</p>
         </section>
 
         <form onSubmit={handleSubmit} className="space-y-4">
