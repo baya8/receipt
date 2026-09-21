@@ -9,6 +9,7 @@ import (
 	"receipt/server/internal/middleware"
 	"receipt/server/internal/repository"
 	"receipt/server/internal/service"
+	"receipt/server/internal/utils"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -18,6 +19,9 @@ import (
 func main() {
 	// .envファイルがある場合は読み込む（ローカル開発用）
 	godotenv.Load()
+
+	// JWT署名鍵の検証（未設定なら起動させない）
+	utils.InitJWTKey()
 
 	// データベース初期化
 	config.InitDB()
@@ -63,13 +67,13 @@ func main() {
 	{
 		auth.POST("/register", userHandler.Register)
 		auth.POST("/login", userHandler.Login)
-		auth.GET("/me", middleware.AuthMiddleware(), userHandler.GetMe)
-		auth.PUT("/me", middleware.AuthMiddleware(), userHandler.UpdateMe)
+		auth.GET("/me", middleware.AuthMiddleware(userRepo), userHandler.GetMe)
+		auth.PUT("/me", middleware.AuthMiddleware(userRepo), userHandler.UpdateMe)
 	}
 
 	// レシート関連（認証必須）
 	api := r.Group("/api")
-	api.Use(middleware.AuthMiddleware())
+	api.Use(middleware.AuthMiddleware(userRepo))
 	{
 		api.GET("/receipts", receiptHandler.GetReceipts)
 		api.POST("/receipts", receiptHandler.CreateReceipt)

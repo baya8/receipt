@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 	"receipt/server/internal/service"
@@ -214,7 +213,7 @@ func (h *ReceiptHandler) AnalyzeReceipt(c *gin.Context) {
 
 	result, err := h.aiAnalyzer.AnalyzeReceipt(c.Request.Context(), imgData)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to analyze receipt: %v", err)})
+		respondInternalError(c, "Failed to analyze receipt")
 		return
 	}
 
