@@ -9,6 +9,7 @@ import { handleApiError } from "@/lib/errors";
 import { toast } from "sonner";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useGroups } from "@/hooks/useGroups";
 import LoadingScreen from "@/components/ui/LoadingScreen";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
@@ -20,6 +21,7 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
   useAuthGuard();
   const router = useRouter();
   const currentUser = useCurrentUser();
+  const { primaryGroup, loading: groupsLoading } = useGroups();
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -91,7 +93,7 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
     }
   };
 
-  if (loading) return <LoadingScreen />;
+  if (loading || groupsLoading) return <LoadingScreen />;
   if (!receipt) return <div className="p-8 text-center text-red-500">データが見つかりませんでした</div>;
 
   const isCreator = currentUser?.id === receipt.user_id;
@@ -224,6 +226,23 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
           </div>
 
           <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-sm font-semibold text-gray-800">支払者</label>
+              <Select
+                className="disabled:opacity-70"
+                value={receipt.payer_id}
+                onChange={(e) => {
+                  const newPayerId = e.target.value;
+                  const newPayer = primaryGroup?.members.find(m => m.id === newPayerId);
+                  setReceipt({...receipt, payer_id: newPayerId, payer: newPayer});
+                }}
+                disabled={!canEdit}
+              >
+                {primaryGroup?.members.map((member) => (
+                  <option key={member.id} value={member.id}>{member.nickname}</option>
+                ))}
+              </Select>
+            </div>
             <div className="space-y-1">
               <label className="text-sm font-semibold text-gray-800">精算方法</label>
               <Select
