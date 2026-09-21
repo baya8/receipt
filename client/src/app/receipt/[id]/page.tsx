@@ -6,49 +6,27 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiRequest } from "@/lib/api";
 import { toast } from "sonner";
-
-interface Receipt {
-  id: string;
-  user_id: string;
-  date: string;
-  settlement_year: number;
-  settlement_month: number;
-  shop: string;
-  item: string;
-  amount: number;
-  payer_id: string;
-  payment_method: string;
-  group_id: string;
-  settled_at: string | null;
-  payer?: {
-    nickname: string;
-  };
-}
+import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import type { Receipt, PaymentMethod } from "@/types";
 
 export default function ReceiptDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  useAuthGuard();
   const router = useRouter();
+  const currentUser = useCurrentUser();
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    const userStr = localStorage.getItem("user");
-    if (!token || !userStr) {
-      router.push("/login");
-      return;
-    }
-
-    try {
-      const user = JSON.parse(userStr);
-      setCurrentUserId(user.id);
-    } catch (e) {
-      console.error("Failed to parse user from localStorage", e);
-    }
-
     async function fetchReceipt() {
+      // 未ログイン時はuseAuthGuardがリダイレクトするので、ここでは無駄なAPI呼び出しをしない
+      if (!localStorage.getItem("token")) {
+        setLoading(false);
+        return;
+      }
+
       try {
         const data = await apiRequest(`/api/receipts/${id}`);
         setReceipt(data);
@@ -63,7 +41,7 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
       }
     }
     fetchReceipt();
-  }, [id, router]);
+  }, [id]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,7 +99,7 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
   if (loading) return <div className="p-8 text-center text-gray-400">読み込み中...</div>;
   if (!receipt) return <div className="p-8 text-center text-red-500">データが見つかりませんでした</div>;
 
-  const isCreator = currentUserId === receipt.user_id;
+  const isCreator = currentUser?.id === receipt.user_id;
   const isSettled = receipt.settled_at !== null;
   const canEdit = isCreator && !isSettled;
 
@@ -256,7 +234,7 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
               <select 
                 className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none text-gray-900 disabled:opacity-70" 
                 value={receipt.payment_method}
-                onChange={(e) => setReceipt({...receipt, payment_method: e.target.value})}
+                onChange={(e) => setReceipt({...receipt, payment_method: e.target.value as PaymentMethod})}
                 disabled={!canEdit}
               >
                 <option value="half">折半</option>

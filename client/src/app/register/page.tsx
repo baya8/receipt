@@ -1,20 +1,21 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { Camera, ImagePlus, Save, Loader2, PlusCircle } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 import { compressImage } from "@/lib/image";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-
-interface Group {
-  id: string;
-  name: string;
-}
+import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useGroups } from "@/hooks/useGroups";
 
 export default function Register() {
+  useAuthGuard();
   const router = useRouter();
+  const currentUser = useCurrentUser();
+  const { primaryGroup, loading: fetchingGroups } = useGroups();
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
@@ -28,28 +29,6 @@ export default function Register() {
   });
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [fetchingGroups, setFetchingGroups] = useState(true);
-
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/login");
-      return;
-    }
-
-    async function fetchGroups() {
-      try {
-        const myGroups = await apiRequest("/api/groups");
-        setGroups(myGroups);
-      } catch (err) {
-        console.error("Failed to fetch groups:", err);
-      } finally {
-        setFetchingGroups(false);
-      }
-    }
-    fetchGroups();
-  }, [router]);
 
   const handleCameraClick = () => {
     cameraInputRef.current?.click();
@@ -96,24 +75,23 @@ export default function Register() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (groups.length === 0) return;
+    if (!primaryGroup) return;
 
     if (formData.amount <= 0) {
       toast.error("金額は1円以上にしてください");
       return;
     }
-    
+
     setLoading(true);
     try {
-      const user = JSON.parse(localStorage.getItem("user") || "{}");
       const [sYear, sMonth] = formData.settlement_month.split('-').map(Number);
       await apiRequest("/api/receipts", {
         method: "POST",
         body: JSON.stringify({
           ...formData,
           amount: Number(formData.amount),
-          group_id: groups[0].id,
-          payer_id: user.id || "",
+          group_id: primaryGroup.id,
+          payer_id: currentUser?.id || "",
           date: new Date(formData.date).toISOString(),
           settlement_year: sYear,
           settlement_month: sMonth,
@@ -131,7 +109,7 @@ export default function Register() {
 
   if (fetchingGroups) return <div className="p-8 text-center text-gray-400">読み込み中...</div>;
 
-  if (groups.length === 0) {
+  if (!primaryGroup) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[80vh] p-8 text-center">
         <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-6">
@@ -156,7 +134,7 @@ export default function Register() {
       <header className="p-4 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-10">
         <h1 className="text-xl font-bold text-gray-800">レシート登録</h1>
         <div className="text-[10px] font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded">
-          {groups[0].name}
+          {primaryGroup.name}
         </div>
       </header>
 

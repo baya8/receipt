@@ -6,21 +6,11 @@ import { apiRequest } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { useApi } from "@/lib/ApiContext";
 import { toast } from "sonner";
-
-interface UserInfo {
-  id: string;
-  email: string;
-  nickname: string;
-}
-
-interface GroupInfo {
-  id: string;
-  name: string;
-  owner_id: string;
-  members: UserInfo[];
-}
+import { useAuthGuard } from "@/hooks/useAuthGuard";
+import type { User as UserInfo, Group as GroupInfo } from "@/types";
 
 export default function Profile() {
+  useAuthGuard();
   const [user, setUser] = useState<UserInfo | null>(null);
   const [groups, setGroups] = useState<GroupInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,22 +18,22 @@ export default function Profile() {
   const [nickname, setNickname] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  
+
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviting, setInviting] = useState(false);
   const [creatingGroup, setCreatingGroup] = useState(false);
-  
+
   const router = useRouter();
   const { checkAuth } = useApi();
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/login");
-      return;
-    }
-
     async function fetchData() {
+      // 未ログイン時はuseAuthGuardがリダイレクトするので、ここでは無駄なAPI呼び出しをしない
+      if (!localStorage.getItem("token")) {
+        setLoading(false);
+        return;
+      }
+
       try {
         const userData = await apiRequest("/auth/me");
         setUser(userData);
@@ -59,7 +49,7 @@ export default function Profile() {
       }
     }
     fetchData();
-  }, [router]);
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
