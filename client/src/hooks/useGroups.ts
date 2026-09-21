@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiRequest } from "@/lib/api";
+import { handleApiError } from "@/lib/errors";
 import type { Group } from "@/types";
 
 interface UseGroupsResult {
@@ -29,7 +30,7 @@ export function useGroups(): UseGroupsResult {
         const data = await apiRequest("/api/groups");
         setGroups(data);
       } catch (err) {
-        console.error("Failed to fetch groups:", err);
+        handleApiError(err, "グループの取得に失敗しました");
       } finally {
         setLoading(false);
       }

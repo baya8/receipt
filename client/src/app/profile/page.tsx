@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { User, LogOut, Settings, Users, Mail, Save, Trash2, PlusCircle, Edit3, Trash } from "lucide-react";
 import { apiRequest } from "@/lib/api";
+import { handleApiError } from "@/lib/errors";
 import { useRouter } from "next/navigation";
 import { useApi } from "@/lib/ApiContext";
 import { toast } from "sonner";
@@ -46,7 +47,7 @@ export default function Profile() {
         const groupData = await apiRequest("/api/groups");
         setGroups(groupData);
       } catch (err) {
-        console.error("Failed to fetch profile data:", err);
+        handleApiError(err, "プロフィール情報の取得に失敗しました");
       } finally {
         setLoading(false);
       }
@@ -75,8 +76,8 @@ export default function Profile() {
       // グループ一覧を再取得
       const groupData = await apiRequest("/api/groups");
       setGroups(groupData);
-    } catch (err: any) {
-      toast.error("グループ作成に失敗しました: " + err.message);
+    } catch (err) {
+      handleApiError(err, "グループ作成に失敗しました", { includeDetail: true });
     } finally {
       setCreatingGroup(false);
     }
@@ -95,8 +96,8 @@ export default function Profile() {
       // 一覧を再取得
       const groupData = await apiRequest("/api/groups");
       setGroups(groupData);
-    } catch (err: any) {
-      toast.error("変更に失敗しました: " + err.message);
+    } catch (err) {
+      handleApiError(err, "変更に失敗しました", { includeDetail: true });
     }
   };
 
@@ -111,8 +112,8 @@ export default function Profile() {
       // 一覧を再取得
       const groupData = await apiRequest("/api/groups");
       setGroups(groupData);
-    } catch (err: any) {
-      toast.error("削除に失敗しました: " + err.message);
+    } catch (err) {
+      handleApiError(err, "削除に失敗しました", { includeDetail: true });
     }
   };
 
@@ -127,8 +128,8 @@ export default function Profile() {
       setUser(updated);
       setPassword("");
       toast.success("アカウント情報を更新しました");
-    } catch (err: any) {
-      toast.error("更新に失敗しました: " + err.message);
+    } catch (err) {
+      handleApiError(err, "更新に失敗しました", { includeDetail: true });
     } finally {
       setSavingUser(false);
     }
@@ -147,8 +148,8 @@ export default function Profile() {
       // グループ情報を再取得
       const groupData = await apiRequest("/api/groups");
       setGroups(groupData);
-    } catch (err: any) {
-      toast.error("招待に失敗しました: " + err.message);
+    } catch (err) {
+      handleApiError(err, "招待に失敗しました", { includeDetail: true });
     } finally {
       setInviting(false);
     }
@@ -164,8 +165,8 @@ export default function Profile() {
       // グループ情報を再取得
       const groupData = await apiRequest("/api/groups");
       setGroups(groupData);
-    } catch (err: any) {
-      toast.error("削除に失敗しました: " + err.message);
+    } catch (err) {
+      handleApiError(err, "削除に失敗しました", { includeDetail: true });
     }
   };
 

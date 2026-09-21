@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from "react";
 import { ChevronRight, ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { apiRequest } from "@/lib/api";
+import { handleApiError } from "@/lib/errors";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { useGroups } from "@/hooks/useGroups";
@@ -40,7 +41,7 @@ function HomeContent() {
         const data = await apiRequest(`/api/receipts?group_id=${primaryGroup.id}&year=${year}&month=${month}`);
         setReceipts(data);
       } catch (err) {
-        console.error("Failed to fetch receipts:", err);
+        handleApiError(err, "レシートの取得に失敗しました");
       } finally {
         setReceiptsLoading(false);
       }

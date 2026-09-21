@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { Camera, ImagePlus, Save, Loader2 } from "lucide-react";
 import { apiRequest } from "@/lib/api";
+import { handleApiError } from "@/lib/errors";
 import { compressImage } from "@/lib/image";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -69,8 +70,8 @@ export default function Register() {
         };
       });
     } catch (err) {
-      console.error("Failed to analyze receipt:", err);
-      toast.error("解析に失敗しました。手動で入力してください。");
+      // AnalyzeReceiptはサーバー内部のエラーをそのまま返すことがあるため、詳細は表示しない
+      handleApiError(err, "解析に失敗しました。手動で入力してください。");
     } finally {
       setAnalyzing(false);
       e.target.value = "";
@@ -104,8 +105,7 @@ export default function Register() {
       toast.success("レシートを登録しました");
       router.push("/");
     } catch (err) {
-      console.error("Failed to register receipt:", err);
-      toast.error("登録に失敗しました");
+      handleApiError(err, "登録に失敗しました");
     } finally {
       setLoading(false);
     }

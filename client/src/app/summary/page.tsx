@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, CheckCircle2, Circle } from "lucide-react";
 import { apiRequest } from "@/lib/api";
+import { handleApiError } from "@/lib/errors";
 import { toast } from "sonner";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -46,7 +47,7 @@ export default function Summary() {
           .reduce((sum: number, s: Settlement) => sum + s.amount, 0);
         setSettleAmount(Math.max(0, initialBalance - totalSettledByMe));
       } catch (err) {
-        console.error("Failed to fetch summary:", err);
+        handleApiError(err, "サマリーの取得に失敗しました");
       } finally {
         setSummaryLoading(false);
       }
@@ -90,9 +91,8 @@ export default function Summary() {
       const data = await apiRequest(`/api/summary?group_id=${primaryGroup.id}&year=${year}&month=${month}`);
       setSummary(data);
       toast.success("精算を記録しました");
-    } catch (err: any) {
-      console.error("Failed to settle:", err);
-      toast.error("精算に失敗しました: " + err.message);
+    } catch (err) {
+      handleApiError(err, "精算に失敗しました", { includeDetail: true });
     } finally {
       setSettling(false);
     }
