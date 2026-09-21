@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import { ChevronRight, PlusCircle, ChevronLeft } from "lucide-react";
+import { ChevronRight, ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { apiRequest } from "@/lib/api";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { useGroups } from "@/hooks/useGroups";
+import LoadingScreen from "@/components/ui/LoadingScreen";
+import EmptyState from "@/components/ui/EmptyState";
 import type { Receipt } from "@/types";
 
 function HomeContent() {
@@ -84,25 +86,11 @@ function HomeContent() {
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-gray-400">読み込み中...</div>;
+  if (loading) return <LoadingScreen />;
 
   if (!primaryGroup) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[80vh] p-8 text-center">
-        <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-6">
-          <PlusCircle size={40} className="text-blue-500" />
-        </div>
-        <h2 className="text-xl font-bold text-gray-900 mb-2">グループがありません</h2>
-        <p className="text-gray-500 mb-8">
-          レシートを記録するには、まず設定画面からグループを作成するか、招待を受けてください。
-        </p>
-        <Link 
-          href="/profile"
-          className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-blue-100"
-        >
-          設定画面へ
-        </Link>
-      </div>
+      <EmptyState description="レシートを記録するには、まず設定画面からグループを作成するか、招待を受けてください。" />
     );
   }
 
@@ -174,7 +162,7 @@ function HomeContent() {
 
 export default function Home() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-gray-400">読み込み中...</div>}>
+    <Suspense fallback={<LoadingScreen />}>
       <HomeContent />
     </Suspense>
   );

@@ -1,15 +1,19 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Camera, ImagePlus, Save, Loader2, PlusCircle } from "lucide-react";
+import { Camera, ImagePlus, Save, Loader2 } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 import { compressImage } from "@/lib/image";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { toast } from "sonner";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useGroups } from "@/hooks/useGroups";
+import LoadingScreen from "@/components/ui/LoadingScreen";
+import EmptyState from "@/components/ui/EmptyState";
+import Input from "@/components/ui/Input";
+import Select from "@/components/ui/Select";
+import Button from "@/components/ui/Button";
 
 export default function Register() {
   useAuthGuard();
@@ -107,26 +111,10 @@ export default function Register() {
     }
   };
 
-  if (fetchingGroups) return <div className="p-8 text-center text-gray-400">読み込み中...</div>;
+  if (fetchingGroups) return <LoadingScreen />;
 
   if (!primaryGroup) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[80vh] p-8 text-center">
-        <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-6">
-          <PlusCircle size={40} className="text-blue-500" />
-        </div>
-        <h2 className="text-xl font-bold text-gray-900 mb-2">グループがありません</h2>
-        <p className="text-gray-500 mb-8">
-          レシートを登録するには、まずグループを作成してください。
-        </p>
-        <Link 
-          href="/profile"
-          className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-blue-100"
-        >
-          設定画面へ
-        </Link>
-      </div>
-    );
+    return <EmptyState description="レシートを登録するには、まずグループを作成してください。" />;
   }
 
   return (
@@ -188,9 +176,8 @@ export default function Register() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-sm font-semibold text-gray-800">購入日</label>
-              <input 
-                type="date" 
-                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" 
+              <Input
+                type="date"
                 value={formData.date}
                 onChange={(e) => {
                   const newDate = e.target.value;
@@ -201,9 +188,8 @@ export default function Register() {
             </div>
             <div className="space-y-1">
               <label className="text-sm font-semibold text-gray-800">精算対象月</label>
-              <input 
-                type="month" 
-                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" 
+              <Input
+                type="month"
                 value={formData.settlement_month}
                 onChange={(e) => setFormData({...formData, settlement_month: e.target.value})}
                 required
@@ -213,10 +199,9 @@ export default function Register() {
 
           <div className="space-y-1">
             <label className="text-sm font-semibold text-gray-800">お店</label>
-            <input 
-              type="text" 
-              placeholder="お店の名前を入力" 
-              className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" 
+            <Input
+              type="text"
+              placeholder="お店の名前を入力"
               value={formData.shop}
               onChange={(e) => setFormData({...formData, shop: e.target.value})}
             />
@@ -224,10 +209,9 @@ export default function Register() {
 
           <div className="space-y-1">
             <label className="text-sm font-semibold text-gray-800">品名</label>
-            <input 
-              type="text" 
-              placeholder="例：夕食の買い物" 
-              className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" 
+            <Input
+              type="text"
+              placeholder="例：夕食の買い物"
               value={formData.item}
               onChange={(e) => setFormData({...formData, item: e.target.value})}
             />
@@ -237,10 +221,10 @@ export default function Register() {
             <label className="text-sm font-semibold text-gray-800">金額</label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">¥</span>
-              <input 
-                type="number" 
-                placeholder="0" 
-                className="w-full p-3 pl-8 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-lg text-gray-900" 
+              <Input
+                type="number"
+                placeholder="0"
+                className="pl-8 font-bold text-lg"
                 value={formData.amount || ""}
                 onChange={(e) => setFormData({...formData, amount: Number(e.target.value)})}
                 required
@@ -252,26 +236,21 @@ export default function Register() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-sm font-semibold text-gray-800">精算方法</label>
-              <select 
-                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none text-gray-900"
+              <Select
                 value={formData.payment_method}
                 onChange={(e) => setFormData({...formData, payment_method: e.target.value})}
               >
                 <option value="half">折半</option>
                 <option value="self">自分が10割負担</option>
                 <option value="other">全額相手負担</option>
-              </select>
+              </Select>
             </div>
           </div>
 
-          <button 
-            type="submit" 
-            disabled={loading || analyzing}
-            className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-200 active:scale-[0.98] transition-all disabled:opacity-50"
-          >
+          <Button type="submit" disabled={loading || analyzing}>
             <Save size={20} />
             {loading ? "保存中..." : "保存する"}
-          </button>
+          </Button>
         </form>
       </div>
     </div>

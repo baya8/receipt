@@ -8,6 +8,10 @@ import { apiRequest } from "@/lib/api";
 import { toast } from "sonner";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import LoadingScreen from "@/components/ui/LoadingScreen";
+import Input from "@/components/ui/Input";
+import Select from "@/components/ui/Select";
+import Button from "@/components/ui/Button";
 import type { Receipt, PaymentMethod } from "@/types";
 
 export default function ReceiptDetail({ params }: { params: Promise<{ id: string }> }) {
@@ -96,7 +100,7 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-gray-400">読み込み中...</div>;
+  if (loading) return <LoadingScreen />;
   if (!receipt) return <div className="p-8 text-center text-red-500">データが見つかりませんでした</div>;
 
   const isCreator = currentUser?.id === receipt.user_id;
@@ -161,10 +165,10 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-sm font-semibold text-gray-800">購入日</label>
-              <input 
-                type="date" 
-                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-gray-900 disabled:opacity-70" 
-                value={receipt.date.split('T')[0]} 
+              <Input
+                type="date"
+                className="transition-all disabled:opacity-70"
+                value={receipt.date.split('T')[0]}
                 onChange={(e) => {
                   const newDate = e.target.value;
                   const [y, m] = newDate.split('-').map(Number);
@@ -176,10 +180,10 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
             </div>
             <div className="space-y-1">
               <label className="text-sm font-semibold text-gray-800">精算対象月</label>
-              <input 
-                type="month" 
-                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-gray-900 disabled:opacity-70" 
-                value={receipt.settlement_year ? `${receipt.settlement_year}-${String(receipt.settlement_month).padStart(2, '0')}` : ""} 
+              <Input
+                type="month"
+                className="transition-all disabled:opacity-70"
+                value={receipt.settlement_year ? `${receipt.settlement_year}-${String(receipt.settlement_month).padStart(2, '0')}` : ""}
                 onChange={(e) => {
                   const [y, m] = e.target.value.split('-').map(Number);
                   setReceipt({...receipt, settlement_year: y, settlement_month: m});
@@ -192,10 +196,10 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
 
           <div className="space-y-1">
             <label className="text-sm font-semibold text-gray-800">お店</label>
-            <input 
-              type="text" 
-              className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-gray-900 disabled:opacity-70" 
-              value={receipt.shop} 
+            <Input
+              type="text"
+              className="transition-all disabled:opacity-70"
+              value={receipt.shop}
               onChange={(e) => setReceipt({...receipt, shop: e.target.value})}
               disabled={!canEdit}
             />
@@ -203,10 +207,10 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
 
           <div className="space-y-1">
             <label className="text-sm font-semibold text-gray-800">品名</label>
-            <input 
-              type="text" 
-              className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-gray-900 disabled:opacity-70" 
-              value={receipt.item} 
+            <Input
+              type="text"
+              className="transition-all disabled:opacity-70"
+              value={receipt.item}
               onChange={(e) => setReceipt({...receipt, item: e.target.value})}
               disabled={!canEdit}
             />
@@ -216,10 +220,10 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
             <label className="text-sm font-semibold text-gray-800">金額</label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">¥</span>
-              <input 
-                type="number" 
-                className="w-full p-3 pl-8 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold text-lg text-gray-900 disabled:opacity-70" 
-                value={receipt.amount} 
+              <Input
+                type="number"
+                className="pl-8 font-bold text-lg transition-all disabled:opacity-70"
+                value={receipt.amount}
                 onChange={(e) => setReceipt({...receipt, amount: Number(e.target.value)})}
                 required
                 disabled={!canEdit}
@@ -231,8 +235,8 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-sm font-semibold text-gray-800">精算方法</label>
-              <select 
-                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none text-gray-900 disabled:opacity-70" 
+              <Select
+                className="disabled:opacity-70"
                 value={receipt.payment_method}
                 onChange={(e) => setReceipt({...receipt, payment_method: e.target.value as PaymentMethod})}
                 disabled={!canEdit}
@@ -240,20 +244,16 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
                 <option value="half">折半</option>
                 <option value="self">自分が10割負担</option>
                 <option value="other">全額相手負担</option>
-              </select>
+              </Select>
             </div>
           </div>
 
           {canEdit ? (
             <div className="pt-4">
-              <button 
-                type="submit" 
-                disabled={saving}
-                className="w-full py-4 bg-gray-900 text-white rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-all disabled:opacity-50"
-              >
+              <Button type="submit" variant="dark" disabled={saving}>
                 <Save size={20} />
                 {saving ? "保存中..." : "変更を保存する"}
-              </button>
+              </Button>
             </div>
           ) : (
             <div className="pt-4 p-4 bg-gray-50 rounded-2xl border border-dashed border-gray-200">

@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, CheckCircle2, Circle, PlusCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, CheckCircle2, Circle } from "lucide-react";
 import { apiRequest } from "@/lib/api";
-import Link from "next/link";
 import { toast } from "sonner";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useGroups } from "@/hooks/useGroups";
+import LoadingScreen from "@/components/ui/LoadingScreen";
+import EmptyState from "@/components/ui/EmptyState";
+import Button from "@/components/ui/Button";
 import type { MonthlySummary, MemberSummary, Settlement } from "@/types";
 
 export default function Summary() {
@@ -96,26 +98,10 @@ export default function Summary() {
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-gray-400">読み込み中...</div>;
+  if (loading) return <LoadingScreen />;
 
   if (!primaryGroup) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[80vh] p-8 text-center">
-        <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-6">
-          <PlusCircle size={40} className="text-blue-500" />
-        </div>
-        <h2 className="text-xl font-bold text-gray-900 mb-2">グループがありません</h2>
-        <p className="text-gray-500 mb-8">
-          精算機能を利用するには、まずグループを作成してください。
-        </p>
-        <Link 
-          href="/profile"
-          className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-blue-100"
-        >
-          設定画面へ
-        </Link>
-      </div>
-    );
+    return <EmptyState description="精算機能を利用するには、まずグループを作成してください。" />;
   }
 
   const mySummary = summary?.members.find(m => m.user_id === currentUser?.id);
@@ -224,13 +210,9 @@ export default function Summary() {
                   全額
                 </button>
               </div>
-              <button 
-                onClick={handleSettle}
-                disabled={settling || settleAmount <= 0}
-                className="w-full py-4 bg-gray-900 text-white rounded-2xl font-bold shadow-lg active:scale-[0.98] transition-all disabled:opacity-50"
-              >
+              <Button variant="dark" onClick={handleSettle} disabled={settling || settleAmount <= 0}>
                 {settling ? "処理中..." : `¥${settleAmount.toLocaleString()} を精算済みにする`}
-              </button>
+              </Button>
             </div>
           )}
         </section>
