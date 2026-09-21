@@ -29,7 +29,7 @@ export default function Register() {
     shop: "",
     item: "",
     amount: 0,
-    payer_id: "",
+    payer_id: currentUser?.id || "",
     payment_method: "half",
   });
   const [loading, setLoading] = useState(false);
@@ -96,7 +96,6 @@ export default function Register() {
           ...formData,
           amount: Number(formData.amount),
           group_id: primaryGroup.id,
-          payer_id: currentUser?.id || "",
           date: new Date(formData.date).toISOString(),
           settlement_year: sYear,
           settlement_month: sMonth,
@@ -234,6 +233,17 @@ export default function Register() {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-sm font-semibold text-gray-800">支払者</label>
+              <Select
+                value={formData.payer_id}
+                onChange={(e) => setFormData({...formData, payer_id: e.target.value})}
+              >
+                {primaryGroup.members.map((member) => (
+                  <option key={member.id} value={member.id}>{member.nickname}</option>
+                ))}
+              </Select>
+            </div>
             <div className="space-y-1">
               <label className="text-sm font-semibold text-gray-800">精算方法</label>
               <Select
