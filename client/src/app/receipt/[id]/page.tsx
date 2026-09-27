@@ -5,65 +5,46 @@ import { ArrowLeft, Trash2, Save } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiRequest } from "@/lib/api";
+import { handleApiError } from "@/lib/errors";
 import { toast } from "sonner";
-
-interface Receipt {
-  id: string;
-  user_id: string;
-  date: string;
-  settlement_year: number;
-  settlement_month: number;
-  shop: string;
-  item: string;
-  amount: number;
-  payer_id: string;
-  payment_method: string;
-  group_id: string;
-  settled_at: string | null;
-  payer?: {
-    nickname: string;
-  };
-}
+import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useGroups } from "@/hooks/useGroups";
+import LoadingScreen from "@/components/ui/LoadingScreen";
+import Input from "@/components/ui/Input";
+import Select from "@/components/ui/Select";
+import Button from "@/components/ui/Button";
+import type { Receipt, PaymentMethod } from "@/types";
 
 export default function ReceiptDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  useAuthGuard();
   const router = useRouter();
+  const currentUser = useCurrentUser();
+  const { primaryGroup, loading: groupsLoading } = useGroups();
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    const userStr = localStorage.getItem("user");
-    if (!token || !userStr) {
-      router.push("/login");
-      return;
-    }
-
-    try {
-      const user = JSON.parse(userStr);
-      setCurrentUserId(user.id);
-    } catch (e) {
-      console.error("Failed to parse user from localStorage", e);
-    }
-
     async function fetchReceipt() {
+      // 未ログイン時はuseAuthGuardがリダイレクトするので、ここでは無駄なAPI呼び出しをしない
+      if (!localStorage.getItem("token")) {
+        setLoading(false);
+        return;
+      }
+
       try {
         const data = await apiRequest(`/api/receipts/${id}`);
         setReceipt(data);
       } catch (err) {
-        console.error("Failed to fetch receipt:", err);
-        // ConnectionErrorはApiProviderがハンドルするため、ここではそれ以外のエラーのみ通知を出す
-        if (!(err instanceof Error && err.name === "ConnectionError")) {
-          toast.error("データの取得に失敗しました");
-        }
+        handleApiError(err, "データの取得に失敗しました");
       } finally {
         setLoading(false);
       }
     }
     fetchReceipt();
-  }, [id, router]);
+  }, [id]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,10 +73,7 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
       toast.success("レシートを更新しました");
       router.push("/");
     } catch (err) {
-      console.error("Failed to update receipt:", err);
-      if (!(err instanceof Error && err.name === "ConnectionError")) {
-        toast.error("更新に失敗しました");
-      }
+      handleApiError(err, "更新に失敗しました");
     } finally {
       setSaving(false);
     }
@@ -111,17 +89,14 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
       toast.success("レシートを削除しました");
       router.push("/");
     } catch (err) {
-      console.error("Failed to delete receipt:", err);
-      if (!(err instanceof Error && err.name === "ConnectionError")) {
-        toast.error("削除に失敗しました");
-      }
+      handleApiError(err, "削除に失敗しました");
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-gray-400">読み込み中...</div>;
+  if (loading || groupsLoading) return <LoadingScreen />;
   if (!receipt) return <div className="p-8 text-center text-red-500">データが見つかりませんでした</div>;
 
-  const isCreator = currentUserId === receipt.user_id;
+  const isCreator = currentUser?.id === receipt.user_id;
   const isSettled = receipt.settled_at !== null;
   const canEdit = isCreator && !isSettled;
 
@@ -183,10 +158,10 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-sm font-semibold text-gray-800">購入日</label>
-              <input 
-                type="date" 
-                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-gray-900 disabled:opacity-70" 
-                value={receipt.date.split('T')[0]} 
+              <Input
+                type="date"
+                className="transition-all disabled:opacity-70"
+                value={receipt.date.split('T')[0]}
                 onChange={(e) => {
                   const newDate = e.target.value;
                   const [y, m] = newDate.split('-').map(Number);
@@ -198,10 +173,10 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
             </div>
             <div className="space-y-1">
               <label className="text-sm font-semibold text-gray-800">精算対象月</label>
-              <input 
-                type="month" 
-                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-gray-900 disabled:opacity-70" 
-                value={receipt.settlement_year ? `${receipt.settlement_year}-${String(receipt.settlement_month).padStart(2, '0')}` : ""} 
+              <Input
+                type="month"
+                className="transition-all disabled:opacity-70"
+                value={receipt.settlement_year ? `${receipt.settlement_year}-${String(receipt.settlement_month).padStart(2, '0')}` : ""}
                 onChange={(e) => {
                   const [y, m] = e.target.value.split('-').map(Number);
                   setReceipt({...receipt, settlement_year: y, settlement_month: m});
@@ -214,10 +189,10 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
 
           <div className="space-y-1">
             <label className="text-sm font-semibold text-gray-800">お店</label>
-            <input 
-              type="text" 
-              className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-gray-900 disabled:opacity-70" 
-              value={receipt.shop} 
+            <Input
+              type="text"
+              className="transition-all disabled:opacity-70"
+              value={receipt.shop}
               onChange={(e) => setReceipt({...receipt, shop: e.target.value})}
               disabled={!canEdit}
             />
@@ -225,10 +200,10 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
 
           <div className="space-y-1">
             <label className="text-sm font-semibold text-gray-800">品名</label>
-            <input 
-              type="text" 
-              className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-gray-900 disabled:opacity-70" 
-              value={receipt.item} 
+            <Input
+              type="text"
+              className="transition-all disabled:opacity-70"
+              value={receipt.item}
               onChange={(e) => setReceipt({...receipt, item: e.target.value})}
               disabled={!canEdit}
             />
@@ -238,10 +213,10 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
             <label className="text-sm font-semibold text-gray-800">金額</label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">¥</span>
-              <input 
-                type="number" 
-                className="w-full p-3 pl-8 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold text-lg text-gray-900 disabled:opacity-70" 
-                value={receipt.amount} 
+              <Input
+                type="number"
+                className="pl-8 font-bold text-lg transition-all disabled:opacity-70"
+                value={receipt.amount}
                 onChange={(e) => setReceipt({...receipt, amount: Number(e.target.value)})}
                 required
                 disabled={!canEdit}
@@ -252,30 +227,43 @@ export default function ReceiptDetail({ params }: { params: Promise<{ id: string
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
+              <label className="text-sm font-semibold text-gray-800">支払者</label>
+              <Select
+                className="disabled:opacity-70"
+                value={receipt.payer_id}
+                onChange={(e) => {
+                  const newPayerId = e.target.value;
+                  const newPayer = primaryGroup?.members.find(m => m.id === newPayerId);
+                  setReceipt({...receipt, payer_id: newPayerId, payer: newPayer});
+                }}
+                disabled={!canEdit}
+              >
+                {primaryGroup?.members.map((member) => (
+                  <option key={member.id} value={member.id}>{member.nickname}</option>
+                ))}
+              </Select>
+            </div>
+            <div className="space-y-1">
               <label className="text-sm font-semibold text-gray-800">精算方法</label>
-              <select 
-                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none text-gray-900 disabled:opacity-70" 
+              <Select
+                className="disabled:opacity-70"
                 value={receipt.payment_method}
-                onChange={(e) => setReceipt({...receipt, payment_method: e.target.value})}
+                onChange={(e) => setReceipt({...receipt, payment_method: e.target.value as PaymentMethod})}
                 disabled={!canEdit}
               >
                 <option value="half">折半</option>
                 <option value="self">自分が10割負担</option>
                 <option value="other">全額相手負担</option>
-              </select>
+              </Select>
             </div>
           </div>
 
           {canEdit ? (
             <div className="pt-4">
-              <button 
-                type="submit" 
-                disabled={saving}
-                className="w-full py-4 bg-gray-900 text-white rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-all disabled:opacity-50"
-              >
+              <Button type="submit" variant="dark" disabled={saving}>
                 <Save size={20} />
                 {saving ? "保存中..." : "変更を保存する"}
-              </button>
+              </Button>
             </div>
           ) : (
             <div className="pt-4 p-4 bg-gray-50 rounded-2xl border border-dashed border-gray-200">

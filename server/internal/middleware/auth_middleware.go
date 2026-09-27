@@ -2,8 +2,7 @@ package middleware
 
 import (
 	"net/http"
-	"receipt/server/config"
-	"receipt/server/internal/models"
+	"receipt/server/internal/repository"
 	"receipt/server/internal/utils"
 	"strings"
 
@@ -12,7 +11,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func AuthMiddleware() gin.HandlerFunc {
+func AuthMiddleware(userRepo repository.UserRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
@@ -30,7 +29,7 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		tokenString := parts[1]
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			return utils.JwtKey, nil
+			return utils.GetJWTKey(), nil
 		})
 
 		if err != nil || !token.Valid {
@@ -61,9 +60,8 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// データベースにユーザーが存在するか確認
-		var user models.User
-		if err := config.DB.First(&user, "id = ?", userID).Error; err != nil {
+		// ユーザーが存在するか確認
+		if _, err := userRepo.GetByID(userID); err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "User no longer exists"})
 			c.Abort()
 			return

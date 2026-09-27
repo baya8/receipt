@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { apiRequest } from "@/lib/api";
+import { handleApiError } from "@/lib/errors";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -25,8 +26,8 @@ export default function Signup() {
       // 登録成功したらそのままログイン画面へ
       toast.success("登録が完了しました。ログインしてください。");
       router.push("/login");
-    } catch (err: any) {
-      toast.error(err.message || "登録に失敗しました");
+    } catch (err) {
+      handleApiError(err, "登録に失敗しました", { includeDetail: true });
     } finally {
       setLoading(false);
     }

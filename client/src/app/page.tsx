@@ -1,69 +1,55 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import { ChevronRight, PlusCircle, ChevronLeft } from "lucide-react";
+import { ChevronRight, ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { apiRequest } from "@/lib/api";
+import { handleApiError } from "@/lib/errors";
 import { useRouter, useSearchParams } from "next/navigation";
-
-interface Receipt {
-  id: string;
-  date: string;
-  shop: string;
-  item: string;
-  amount: number;
-  payment_method: string;
-  payer_id: string;
-  payer?: {
-    nickname: string;
-  };
-}
-
-interface Group {
-  id: string;
-  name: string;
-}
+import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { useGroups } from "@/hooks/useGroups";
+import LoadingScreen from "@/components/ui/LoadingScreen";
+import EmptyState from "@/components/ui/EmptyState";
+import type { Receipt } from "@/types";
 
 function HomeContent() {
+  useAuthGuard();
+  const { primaryGroup, loading: groupsLoading } = useGroups();
   const [receipts, setReceipts] = useState<Receipt[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [groups, setGroups] = useState<Group[]>([]);
+  const [receiptsLoading, setReceiptsLoading] = useState(true);
   const router = useRouter();
   const searchParams = useSearchParams();
 
   // URLパラメータから年月を取得、なければ現在の年月を使用
   const queryYear = searchParams.get("year");
   const queryMonth = searchParams.get("month");
-  
+
   const now = new Date();
   const year = queryYear ? parseInt(queryYear) : now.getFullYear();
   const month = queryMonth ? parseInt(queryMonth) : now.getMonth() + 1;
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/login");
-      return;
-    }
+    async function fetchReceipts() {
+      if (groupsLoading) return;
+      if (!primaryGroup) {
+        setReceiptsLoading(false);
+        return;
+      }
 
-    async function fetchData() {
-      setLoading(true);
+      setReceiptsLoading(true);
       try {
-        const myGroups = await apiRequest("/api/groups");
-        setGroups(myGroups);
-
-        if (myGroups.length > 0) {
-          const data = await apiRequest(`/api/receipts?group_id=${myGroups[0].id}&year=${year}&month=${month}`);
-          setReceipts(data);
-        }
+        const data = await apiRequest(`/api/receipts?group_id=${primaryGroup.id}&year=${year}&month=${month}`);
+        setReceipts(data);
       } catch (err) {
-        console.error("Failed to fetch data:", err);
+        handleApiError(err, "レシートの取得に失敗しました");
       } finally {
-        setLoading(false);
+        setReceiptsLoading(false);
       }
     }
-    fetchData();
-  }, [router, year, month]);
+    fetchReceipts();
+  }, [groupsLoading, primaryGroup, year, month]);
+
+  const loading = groupsLoading || receiptsLoading;
 
   const changeMonth = (offset: number) => {
     const date = new Date(year, month - 1);
@@ -101,25 +87,11 @@ function HomeContent() {
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-gray-400">読み込み中...</div>;
+  if (loading) return <LoadingScreen />;
 
-  if (groups.length === 0) {
+  if (!primaryGroup) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[80vh] p-8 text-center">
-        <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-6">
-          <PlusCircle size={40} className="text-blue-500" />
-        </div>
-        <h2 className="text-xl font-bold text-gray-900 mb-2">グループがありません</h2>
-        <p className="text-gray-500 mb-8">
-          レシートを記録するには、まず設定画面からグループを作成するか、招待を受けてください。
-        </p>
-        <Link 
-          href="/profile"
-          className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-blue-100"
-        >
-          設定画面へ
-        </Link>
-      </div>
+      <EmptyState description="レシートを記録するには、まず設定画面からグループを作成するか、招待を受けてください。" />
     );
   }
 
@@ -132,7 +104,7 @@ function HomeContent() {
         </button>
         <div className="text-center">
           <h1 className="text-lg font-bold text-gray-800">{year}年{month}月</h1>
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{groups[0].name}</p>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{primaryGroup.name}</p>
         </div>
         <button onClick={() => changeMonth(1)} className="p-2 hover:bg-gray-100 active:bg-gray-200 rounded-full transition-colors">
           <ChevronRight size={24} className="text-gray-900" strokeWidth={2.5} />
@@ -191,7 +163,7 @@ function HomeContent() {
 
 export default function Home() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-gray-400">読み込み中...</div>}>
+    <Suspense fallback={<LoadingScreen />}>
       <HomeContent />
     </Suspense>
   );

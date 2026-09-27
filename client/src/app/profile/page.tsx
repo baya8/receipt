@@ -3,24 +3,18 @@
 import { useEffect, useState } from "react";
 import { User, LogOut, Settings, Users, Mail, Save, Trash2, PlusCircle, Edit3, Trash } from "lucide-react";
 import { apiRequest } from "@/lib/api";
+import { handleApiError } from "@/lib/errors";
 import { useRouter } from "next/navigation";
 import { useApi } from "@/lib/ApiContext";
 import { toast } from "sonner";
-
-interface UserInfo {
-  id: string;
-  email: string;
-  nickname: string;
-}
-
-interface GroupInfo {
-  id: string;
-  name: string;
-  owner_id: string;
-  members: UserInfo[];
-}
+import { useAuthGuard } from "@/hooks/useAuthGuard";
+import LoadingScreen from "@/components/ui/LoadingScreen";
+import Input from "@/components/ui/Input";
+import Button from "@/components/ui/Button";
+import type { User as UserInfo, Group as GroupInfo } from "@/types";
 
 export default function Profile() {
+  useAuthGuard();
   const [user, setUser] = useState<UserInfo | null>(null);
   const [groups, setGroups] = useState<GroupInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,22 +22,22 @@ export default function Profile() {
   const [nickname, setNickname] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  
+
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviting, setInviting] = useState(false);
   const [creatingGroup, setCreatingGroup] = useState(false);
-  
+
   const router = useRouter();
   const { checkAuth } = useApi();
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/login");
-      return;
-    }
-
     async function fetchData() {
+      // 未ログイン時はuseAuthGuardがリダイレクトするので、ここでは無駄なAPI呼び出しをしない
+      if (!localStorage.getItem("token")) {
+        setLoading(false);
+        return;
+      }
+
       try {
         const userData = await apiRequest("/auth/me");
         setUser(userData);
@@ -53,13 +47,13 @@ export default function Profile() {
         const groupData = await apiRequest("/api/groups");
         setGroups(groupData);
       } catch (err) {
-        console.error("Failed to fetch profile data:", err);
+        handleApiError(err, "プロフィール情報の取得に失敗しました");
       } finally {
         setLoading(false);
       }
     }
     fetchData();
-  }, [router]);
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -82,8 +76,8 @@ export default function Profile() {
       // グループ一覧を再取得
       const groupData = await apiRequest("/api/groups");
       setGroups(groupData);
-    } catch (err: any) {
-      toast.error("グループ作成に失敗しました: " + err.message);
+    } catch (err) {
+      handleApiError(err, "グループ作成に失敗しました", { includeDetail: true });
     } finally {
       setCreatingGroup(false);
     }
@@ -102,8 +96,8 @@ export default function Profile() {
       // 一覧を再取得
       const groupData = await apiRequest("/api/groups");
       setGroups(groupData);
-    } catch (err: any) {
-      toast.error("変更に失敗しました: " + err.message);
+    } catch (err) {
+      handleApiError(err, "変更に失敗しました", { includeDetail: true });
     }
   };
 
@@ -118,8 +112,8 @@ export default function Profile() {
       // 一覧を再取得
       const groupData = await apiRequest("/api/groups");
       setGroups(groupData);
-    } catch (err: any) {
-      toast.error("削除に失敗しました: " + err.message);
+    } catch (err) {
+      handleApiError(err, "削除に失敗しました", { includeDetail: true });
     }
   };
 
@@ -134,8 +128,8 @@ export default function Profile() {
       setUser(updated);
       setPassword("");
       toast.success("アカウント情報を更新しました");
-    } catch (err: any) {
-      toast.error("更新に失敗しました: " + err.message);
+    } catch (err) {
+      handleApiError(err, "更新に失敗しました", { includeDetail: true });
     } finally {
       setSavingUser(false);
     }
@@ -154,8 +148,8 @@ export default function Profile() {
       // グループ情報を再取得
       const groupData = await apiRequest("/api/groups");
       setGroups(groupData);
-    } catch (err: any) {
-      toast.error("招待に失敗しました: " + err.message);
+    } catch (err) {
+      handleApiError(err, "招待に失敗しました", { includeDetail: true });
     } finally {
       setInviting(false);
     }
@@ -171,12 +165,12 @@ export default function Profile() {
       // グループ情報を再取得
       const groupData = await apiRequest("/api/groups");
       setGroups(groupData);
-    } catch (err: any) {
-      toast.error("削除に失敗しました: " + err.message);
+    } catch (err) {
+      handleApiError(err, "削除に失敗しました", { includeDetail: true });
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-gray-400">読み込み中...</div>;
+  if (loading) return <LoadingScreen />;
 
   return (
     <div className="pb-10">
@@ -199,9 +193,8 @@ export default function Profile() {
           <form onSubmit={handleUpdateUser} className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm space-y-4">
             <div className="space-y-1">
               <label className="text-xs font-bold text-gray-500 ml-1">ニックネーム</label>
-              <input 
-                type="text" 
-                className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+              <Input
+                type="text"
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
                 required
@@ -209,9 +202,8 @@ export default function Profile() {
             </div>
             <div className="space-y-1">
               <label className="text-xs font-bold text-gray-500 ml-1">メールアドレス</label>
-              <input 
-                type="email" 
-                className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+              <Input
+                type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -219,22 +211,17 @@ export default function Profile() {
             </div>
             <div className="space-y-1">
               <label className="text-xs font-bold text-gray-500 ml-1">新しいパスワード (変更する場合のみ)</label>
-              <input 
-                type="password" 
-                className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+              <Input
+                type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
               />
             </div>
-            <button 
-              type="submit" 
-              disabled={savingUser}
-              className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-100 active:scale-95 transition-all disabled:opacity-50"
-            >
+            <Button type="submit" disabled={savingUser}>
               <Save size={18} />
               保存する
-            </button>
+            </Button>
           </form>
         </section>
 

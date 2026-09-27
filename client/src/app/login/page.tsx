@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { apiRequest } from "@/lib/api";
+import { handleApiError } from "@/lib/errors";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useApi } from "@/lib/ApiContext";
@@ -25,8 +26,8 @@ export default function Login() {
       checkAuth();
       toast.success("ログインしました");
       router.push("/");
-    } catch (err: any) {
-      toast.error(err.message || "ログインに失敗しました");
+    } catch (err) {
+      handleApiError(err, "ログインに失敗しました", { includeDetail: true });
     }
   };
 

@@ -1,86 +1,61 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, CheckCircle2, Circle, PlusCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, CheckCircle2, Circle } from "lucide-react";
 import { apiRequest } from "@/lib/api";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { handleApiError } from "@/lib/errors";
 import { toast } from "sonner";
-
-interface MemberSummary {
-  user_id: string;
-  nickname: string;
-  paid: number;
-  share: number;
-}
-
-interface Settlement {
-  id: string;
-  amount: number;
-  settled_by: string;
-  created_at: string;
-  settled_by_user: {
-    nickname: string;
-  };
-}
-
-interface SummaryData {
-  total_spent: number;
-  members: MemberSummary[];
-  settlements: Settlement[];
-}
-
-interface Group {
-  id: string;
-  name: string;
-}
+import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useGroups } from "@/hooks/useGroups";
+import LoadingScreen from "@/components/ui/LoadingScreen";
+import EmptyState from "@/components/ui/EmptyState";
+import Button from "@/components/ui/Button";
+import type { MonthlySummary, MemberSummary, Settlement } from "@/types";
 
 export default function Summary() {
+  useAuthGuard();
+  const currentUser = useCurrentUser();
+  const { primaryGroup, loading: groupsLoading } = useGroups();
   const [date, setDate] = useState(new Date());
-  const [summary, setSummary] = useState<SummaryData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [groups, setGroups] = useState<Group[]>([]);
+  const [summary, setSummary] = useState<MonthlySummary | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
   const [settleAmount, setSettleAmount] = useState<number>(0);
   const [settling, setSettling] = useState(false);
-  const router = useRouter();
 
   const year = date.getFullYear();
   const month = date.getMonth() + 1;
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/login");
-      return;
-    }
+    async function fetchSummary() {
+      if (groupsLoading) return;
+      if (!primaryGroup) {
+        setSummaryLoading(false);
+        return;
+      }
 
-    async function fetchData() {
-      setLoading(true);
+      setSummaryLoading(true);
       try {
-        const myGroups = await apiRequest("/api/groups");
-        setGroups(myGroups);
+        const data = await apiRequest(`/api/summary?group_id=${primaryGroup.id}&year=${year}&month=${month}`);
+        setSummary(data);
 
-        if (myGroups.length > 0) {
-          const data = await apiRequest(`/api/summary?group_id=${myGroups[0].id}&year=${year}&month=${month}`);
-          setSummary(data);
-          
-          // 残高を計算してデフォルトの精算額にセット
-          const user = JSON.parse(localStorage.getItem("user") || "{}");
-          const mySum = data.members.find((m: MemberSummary) => m.user_id === user.id);
-          const initialBalance = mySum ? Math.max(0, mySum.share - mySum.paid) : 0;
-          const totalSettledByMe = data.settlements
-            .filter((s: Settlement) => s.settled_by === user.id)
-            .reduce((sum: number, s: Settlement) => sum + s.amount, 0);
-          setSettleAmount(Math.max(0, initialBalance - totalSettledByMe));
-        }
+        // 残高を計算してデフォルトの精算額にセット
+        const mySum = data.members.find((m: MemberSummary) => m.user_id === currentUser?.id);
+        const initialBalance = mySum ? Math.max(0, mySum.share - mySum.paid) : 0;
+        const totalSettledByMe = data.settlements
+          .filter((s: Settlement) => s.settled_by === currentUser?.id)
+          .reduce((sum: number, s: Settlement) => sum + s.amount, 0);
+        setSettleAmount(Math.max(0, initialBalance - totalSettledByMe));
       } catch (err) {
-        console.error("Failed to fetch summary:", err);
+        handleApiError(err, "サマリーの取得に失敗しました");
       } finally {
-        setLoading(false);
+        setSummaryLoading(false);
       }
     }
-    fetchData();
-  }, [year, month, router]);
+    fetchSummary();
+  }, [groupsLoading, primaryGroup, year, month, currentUser]);
+
+  const loading = groupsLoading || summaryLoading;
 
   const changeMonth = (offset: number) => {
     const newDate = new Date(date);
@@ -89,7 +64,7 @@ export default function Summary() {
   };
 
   const handleSettle = async () => {
-    if (groups.length === 0 || settleAmount <= 0) {
+    if (!primaryGroup || settleAmount <= 0) {
       toast.error("精算金額を入力してください");
       return;
     }
@@ -106,61 +81,43 @@ export default function Summary() {
       await apiRequest("/api/settle", {
         method: "POST",
         body: JSON.stringify({
-          group_id: groups[0].id,
+          group_id: primaryGroup.id,
           year,
           month,
           amount: settleAmount,
         }),
       });
       // リロード
-      const data = await apiRequest(`/api/summary?group_id=${groups[0].id}&year=${year}&month=${month}`);
+      const data = await apiRequest(`/api/summary?group_id=${primaryGroup.id}&year=${year}&month=${month}`);
       setSummary(data);
       toast.success("精算を記録しました");
-    } catch (err: any) {
-      console.error("Failed to settle:", err);
-      toast.error("精算に失敗しました: " + err.message);
+    } catch (err) {
+      handleApiError(err, "精算に失敗しました", { includeDetail: true });
     } finally {
       setSettling(false);
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-gray-400">読み込み中...</div>;
+  if (loading) return <LoadingScreen />;
 
-  if (groups.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[80vh] p-8 text-center">
-        <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-6">
-          <PlusCircle size={40} className="text-blue-500" />
-        </div>
-        <h2 className="text-xl font-bold text-gray-900 mb-2">グループがありません</h2>
-        <p className="text-gray-500 mb-8">
-          精算機能を利用するには、まずグループを作成してください。
-        </p>
-        <Link 
-          href="/profile"
-          className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-blue-100"
-        >
-          設定画面へ
-        </Link>
-      </div>
-    );
+  if (!primaryGroup) {
+    return <EmptyState description="精算機能を利用するには、まずグループを作成してください。" />;
   }
 
-  const user = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("user") || "{}") : {};
-  const mySummary = summary?.members.find(m => m.user_id === user.id);
-  const otherSummary = summary?.members.find(m => m.user_id !== user.id);
+  const mySummary = summary?.members.find(m => m.user_id === currentUser?.id);
+  const otherSummary = summary?.members.find(m => m.user_id !== currentUser?.id);
 
   // 初期バランス（レシートのみ）
   const initialBalance = mySummary ? mySummary.share - mySummary.paid : 0;
-  
+
   // すでに精算された額の合計（自分が払った分）
   const totalSettledByMe = summary?.settlements
-    .filter(s => s.settled_by === user.id)
+    .filter(s => s.settled_by === currentUser?.id)
     .reduce((sum, s) => sum + s.amount, 0) || 0;
-    
+
   // 相手が精算した額の合計
   const totalSettledByOther = summary?.settlements
-    .filter(s => s.settled_by !== user.id)
+    .filter(s => s.settled_by !== currentUser?.id)
     .reduce((sum, s) => sum + s.amount, 0) || 0;
 
   // 現在の残高
@@ -177,7 +134,7 @@ export default function Summary() {
         </button>
         <div className="text-center">
           <h1 className="text-lg font-bold text-gray-800">{year}年{month}月</h1>
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{groups[0].name}</p>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{primaryGroup.name}</p>
         </div>
         <button onClick={() => changeMonth(1)} className="p-2 hover:bg-gray-100 active:bg-gray-200 rounded-full transition-colors">
           <ChevronRight size={24} className="text-gray-900" strokeWidth={2.5} />
@@ -253,13 +210,9 @@ export default function Summary() {
                   全額
                 </button>
               </div>
-              <button 
-                onClick={handleSettle}
-                disabled={settling || settleAmount <= 0}
-                className="w-full py-4 bg-gray-900 text-white rounded-2xl font-bold shadow-lg active:scale-[0.98] transition-all disabled:opacity-50"
-              >
+              <Button variant="dark" onClick={handleSettle} disabled={settling || settleAmount <= 0}>
                 {settling ? "処理中..." : `¥${settleAmount.toLocaleString()} を精算済みにする`}
-              </button>
+              </Button>
             </div>
           )}
         </section>

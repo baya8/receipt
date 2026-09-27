@@ -56,7 +56,7 @@ func NewSummaryService(
 func (s *summaryServiceImpl) GetMonthlySummary(groupID uuid.UUID, year int, month int) (*MonthlySummaryResult, error) {
 	group, err := s.groupRepo.GetByIDWithMembers(groupID)
 	if err != nil {
-		return nil, err
+		return nil, ErrGroupNotFound
 	}
 
 	settlements, err := s.settlementRepo.GetSettlementsByFilter(groupID, year, month)
