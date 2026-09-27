@@ -19,6 +19,10 @@ COPY . .
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
+# リリースタグ（例: v20260927）。CIから渡されない場合はローカルビルドとして扱う
+ARG NEXT_PUBLIC_APP_VERSION=dev
+ENV NEXT_PUBLIC_APP_VERSION=${NEXT_PUBLIC_APP_VERSION}
+
 # This will do a standalone build which includes only the necessary files
 RUN npm run build
 

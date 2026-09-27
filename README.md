@@ -96,8 +96,10 @@ receipt/
    プロジェクトルートに `.env` ファイルを作成し、以下の内容を設定してください。
    ```text
    GOOGLE_API_KEY=あなたのGemini_APIキー
+   JWT_SECRET=十分に長いランダムな文字列（例: openssl rand -hex 32 で生成）
    ```
    ※ API キーは [Google AI Studio](https://aistudio.google.com/app/apikey) で取得可能です。
+   ※ `JWT_SECRET` は認証トークンの署名鍵です。**未設定の場合サーバーが起動しません**（fail-fast）。
 
 2. **起動**
    ```bash
@@ -117,3 +119,38 @@ receipt/
 3. スマホのブラウザから開発PCの現在のIP（例: `http://192.168.50.16:3000`）にアクセスします。
 
 ※ ルーターを買い替える等でサブネット自体（`192.168.50.` の部分）が変わった場合のみ、上記2ファイルのワイルドカード部分を直す必要があります。
+
+# 本番デプロイ
+
+本番環境は `compose.yml` + `compose-image.yml` を使い、GHCR（GitHub Container Registry）にビルド済みのイメージを`git push`のタグ契機でビルド・pushし、それをpullして動かす運用。`v*` 形式のタグをpushすると `.github/workflows/deploy.yml` が起動し、server/clientの両イメージがビルド・pushされる。
+
+## リリース手順
+
+1. **サーバー側の `.env` を更新**
+   ```text
+   IMAGE_TAG=vYYYYMMDD
+   ```
+2. **サーバー側で新イメージをpullして再起動**
+   ```bash
+   docker compose -f compose.yml -f compose-image.yml pull server client
+   docker compose -f compose.yml -f compose-image.yml up -d server client
+   ```
+   ※ `.env` に `COMPOSE_FILE=compose.yml:compose-image.yml` を1行追加しておくと、以降は `-f` オプション無しで `docker compose pull/up` だけで済む。
+3. **起動確認**
+   ```bash
+   docker compose -f compose.yml -f compose-image.yml ps
+   docker compose -f compose.yml -f compose-image.yml logs --tail=50 server
+   ```
+   異常な起動失敗ログ（環境変数未設定エラー等）が出ていないことを確認する。
+4. **動作確認**
+   ブラウザで実際にログイン〜レシート登録まで一通り操作する。`JWT_SECRET` を新規追加・変更した場合は署名鍵が変わるため、既存ログイン済みユーザーは全員1回だけ再ログインが必要になる。
+
+DBスキーマの変更を伴わないリリースであれば、マイグレーション作業は不要。
+
+## 運用メモ
+
+- **AI解析だけ突然動かなくなった場合**: サーバー起動時に生成したGemini APIクライアントを、プロセスを再起動するまでそのまま使い回す設計になっている。長期間（数週間単位）稼働し続けた場合、まれに接続が不健全になり解析だけ失敗し続ける可能性がゼロではない。まずは以下でサーバーだけ再起動してみる。
+  ```bash
+  docker compose -f compose.yml -f compose-image.yml restart server
+  ```
+- Gemini APIの無料枠には利用回数の上限があり、超過すると解析時に「AI解析の利用上限に達しました」というエラーが表示される（コード上の不具合ではない）。しばらく時間をおくか、プランのアップグレードを検討する。
