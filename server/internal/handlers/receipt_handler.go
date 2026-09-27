@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"io"
+	"log"
 	"net/http"
 	"receipt/server/internal/service"
+	"receipt/server/internal/utils"
 	"strconv"
 	"time"
 
@@ -213,7 +215,10 @@ func (h *ReceiptHandler) AnalyzeReceipt(c *gin.Context) {
 
 	result, err := h.aiAnalyzer.AnalyzeReceipt(c.Request.Context(), imgData)
 	if err != nil {
-		respondInternalError(c, "Failed to analyze receipt")
+		log.Printf("AnalyzeReceipt failed: %s", utils.RedactSecrets(err))
+		if !respondWithServiceError(c, err) {
+			respondInternalError(c, "Failed to analyze receipt")
+		}
 		return
 	}
 

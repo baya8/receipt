@@ -10,6 +10,17 @@ export class ConnectionError extends Error {
   }
 }
 
+// サーバーがエラーレスポンス（4xx/5xx）を返した場合のエラー。
+// 呼び出し側でステータスコードごとに異なる処理をしたい場合に使う（例: 429のみ専用メッセージを出す）。
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 export async function apiRequest(path: string, options: RequestInit = {}) {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   
@@ -50,7 +61,7 @@ export async function apiRequest(path: string, options: RequestInit = {}) {
       } catch (e) {
         errorMessage = text || `Error: ${response.status} ${response.statusText}`;
       }
-      throw new Error(errorMessage);
+      throw new ApiError(errorMessage, response.status);
     }
 
     const text = await response.text();

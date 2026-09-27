@@ -5,14 +5,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"net/http"
 	"strings"
 	"time"
 
 	"receipt/server/internal/models"
 	"receipt/server/internal/repository"
+	"receipt/server/internal/utils"
 
 	"github.com/google/generative-ai-go/genai"
 	"github.com/google/uuid"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 )
 
@@ -25,6 +29,8 @@ var (
 	ErrAlreadySettled  = errors.New("cannot modify settled receipt")
 	// ErrInvalidAmount 金額が不正な場合のエラー
 	ErrInvalidAmount   = errors.New("amount must be at least 1")
+	// ErrGeminiQuotaExceeded Gemini APIの利用上限（レート制限）に達した場合のエラー
+	ErrGeminiQuotaExceeded = errors.New("gemini api quota exceeded")
 )
 
 // CreateReceiptParams レシート作成・更新用パラメータ
@@ -174,34 +180,61 @@ type AnalyzeReceiptResult struct {
 }
 
 type geminiAIAnalyzer struct {
-	apiKey string
+	client *genai.Client
+	model  *genai.GenerativeModel
 }
 
-// NewAIAnalyzer AIAnalyzerの実装を作成
+// NewAIAnalyzer AIAnalyzerの実装を作成。
+// Geminiクライアントはここで一度だけ生成し、以降のリクエストで使い回す
+// （リクエストのたびにgRPCコネクションを張り直すオーバーヘッドを避けるため）。
 func NewAIAnalyzer(apiKey string) AIAnalyzer {
-	return &geminiAIAnalyzer{apiKey: apiKey}
+	client, err := genai.NewClient(context.Background(), option.WithAPIKey(apiKey))
+	if err != nil {
+		// AI解析機能を使わない運用もあり得るため、ここではサーバー起動自体は止めない。
+		// 実際の失敗は初回の解析リクエスト時に表面化する。
+		log.Printf("Failed to initialize Gemini client: %s", utils.RedactSecrets(err))
+		return &geminiAIAnalyzer{}
+	}
+
+	model := client.GenerativeModel("gemini-flash-latest")
+	model.ResponseMIMEType = "application/json"
+	model.ResponseSchema = &genai.Schema{
+		Type: genai.TypeObject,
+		Properties: map[string]*genai.Schema{
+			"date":   {Type: genai.TypeString},
+			"shop":   {Type: genai.TypeString},
+			"item":   {Type: genai.TypeString},
+			"amount": {Type: genai.TypeInteger},
+		},
+		Required: []string{"date", "shop", "item", "amount"},
+	}
+	model.SetTemperature(0)
+	// 出力自体は短いJSONだが、モデルによっては応答前に内部的な思考トークンを消費するため、
+	// 小さすぎる上限にすると応答が途中で打ち切られる（実測で発生）。余裕を持たせておく。
+	model.SetMaxOutputTokens(1024)
+
+	return &geminiAIAnalyzer{client: client, model: model}
 }
 
 func (a *geminiAIAnalyzer) AnalyzeReceipt(ctx context.Context, imgData []byte) (*AnalyzeReceiptResult, error) {
-	if a.apiKey == "" {
-		return nil, errors.New("GOOGLE_API_KEY is not set")
+	if a.model == nil {
+		return nil, errors.New("gemini client is not initialized (check GOOGLE_API_KEY)")
 	}
 
-	client, err := genai.NewClient(ctx, option.WithAPIKey(a.apiKey))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Gemini client: %w", err)
-	}
-	defer client.Close()
-
-	model := client.GenerativeModel("gemini-flash-latest")
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
 
 	prompt := []genai.Part{
 		genai.ImageData("jpeg", imgData),
 		genai.Text("Analyze this receipt and return JSON only. Use YYYY-MM-DD for date, name for shop, summary for item, and integer for amount. JSON:\n{\"date\": \"YYYY-MM-DD\", \"shop\": \"name\", \"item\": \"summary\", \"amount\": 1234}"),
 	}
 
-	resp, err := model.GenerateContent(ctx, prompt...)
+	resp, err := a.model.GenerateContent(ctx, prompt...)
 	if err != nil {
+		var apiErr *googleapi.Error
+		if errors.As(err, &apiErr) && apiErr.Code == http.StatusTooManyRequests {
+			return nil, ErrGeminiQuotaExceeded
+		}
 		return nil, fmt.Errorf("failed to generate content: %w", err)
 	}
 
@@ -224,7 +257,7 @@ func (a *geminiAIAnalyzer) AnalyzeReceipt(ctx context.Context, imgData []byte) (
 
 	var analyzeResult AnalyzeReceiptResult
 	if err := json.Unmarshal([]byte(resultText), &analyzeResult); err != nil {
-		return nil, fmt.Errorf("failed to parse Gemini response: %w", err)
+		return nil, fmt.Errorf("failed to parse Gemini response (raw: %q): %w", resultText, err)
 	}
 
 	return &analyzeResult, nil

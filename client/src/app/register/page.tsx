@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import { Camera, ImagePlus, Save, Loader2 } from "lucide-react";
-import { apiRequest } from "@/lib/api";
+import { apiRequest, ApiError } from "@/lib/api";
 import { handleApiError } from "@/lib/errors";
 import { compressImage } from "@/lib/image";
 import { isMonthFullySettled } from "@/lib/settlement";
@@ -101,8 +101,13 @@ export default function Register() {
         amount: data.amount || prev.amount,
       }));
     } catch (err) {
-      // AnalyzeReceiptはサーバー内部のエラーをそのまま返すことがあるため、詳細は表示しない
-      handleApiError(err, "解析に失敗しました。手動で入力してください。");
+      if (err instanceof ApiError && err.status === 429) {
+        // Gemini APIの利用上限に達した場合は、サーバー側で用意した案内メッセージをそのまま表示する
+        handleApiError(err, err.message);
+      } else {
+        // それ以外は詳細を表示しない（想定外のエラー内容が表示されるのを避けるため）
+        handleApiError(err, "解析に失敗しました。手動で入力してください。");
+      }
     } finally {
       setAnalyzing(false);
       e.target.value = "";

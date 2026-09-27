@@ -31,6 +31,7 @@ var serviceErrorMapping = []struct {
 	{service.ErrNotCreator, http.StatusForbidden, "Only the creator can modify this receipt"},
 	{service.ErrAlreadySettled, http.StatusForbidden, "精算済みのレシートは変更できません"},
 	{service.ErrInvalidAmount, http.StatusBadRequest, "金額は1円以上にしてください"},
+	{service.ErrGeminiQuotaExceeded, http.StatusTooManyRequests, "AI解析の利用上限に達しました。しばらく時間をおいて再試行してください。"},
 
 	// Settlement
 	{service.ErrInvalidSettlementAmount, http.StatusBadRequest, "精算金額は1円以上にしてください"},
