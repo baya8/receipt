@@ -343,6 +343,10 @@ export default function Profile() {
             </>
           )}
         </section>
+
+        <p className="text-center text-[10px] text-gray-300">
+          バージョン: {process.env.NEXT_PUBLIC_APP_VERSION || "dev"}
+        </p>
       </div>
     </div>
   );

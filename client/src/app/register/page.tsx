@@ -5,6 +5,7 @@ import { Camera, ImagePlus, Save, Loader2 } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 import { handleApiError } from "@/lib/errors";
 import { compressImage } from "@/lib/image";
+import { isMonthFullySettled } from "@/lib/settlement";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
@@ -43,6 +44,31 @@ export default function Register() {
     galleryInputRef.current?.click();
   };
 
+  // 指定した精算対象月（YYYY-MM）が精算済み（残高0円）かどうかを確認する。
+  // 精算済みの月に後から登録すると、精算後の残高計算と実際の未清算額がずれてしまうため。
+  // 確認に失敗した場合（ネットワークエラー等）は、登録自体をブロックしないようfalse（未精算扱い）を返す。
+  const isSettlementMonthClosed = async (yearMonth: string): Promise<boolean> => {
+    if (!primaryGroup) return false;
+    const [year, month] = yearMonth.split('-').map(Number);
+    try {
+      const summary = await apiRequest(`/api/summary?group_id=${primaryGroup.id}&year=${year}&month=${month}`);
+      return isMonthFullySettled(summary);
+    } catch (err) {
+      console.error("Failed to check settlement status:", err);
+      return false;
+    }
+  };
+
+  // ユーザーが直接選択した月が精算済みなら、選択を差し戻してエラーを表示する
+  const checkMonthAvailable = async (yearMonth: string): Promise<boolean> => {
+    if (await isSettlementMonthClosed(yearMonth)) {
+      const [year, month] = yearMonth.split('-').map(Number);
+      toast.error(`${year}年${month}月は精算済みのため選択できません`);
+      return false;
+    }
+    return true;
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -58,17 +84,22 @@ export default function Register() {
         body: formDataBody,
       });
 
-      setFormData((prev) => {
-        const newDate = data.date || prev.date;
-        return {
-          ...prev,
-          date: newDate,
-          settlement_month: newDate.slice(0, 7),
-          shop: data.shop || prev.shop,
-          item: data.item || prev.item,
-          amount: data.amount || prev.amount,
-        };
-      });
+      const newDate = data.date || formData.date;
+      let newMonth = newDate.slice(0, 7);
+      if (await isSettlementMonthClosed(newMonth)) {
+        const [closedYear, closedMonth] = newMonth.split('-').map(Number);
+        newMonth = new Date().toISOString().slice(0, 7);
+        toast.info(`${closedYear}年${closedMonth}月は精算済みのため、精算対象月を今月に設定しました`);
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        date: newDate,
+        settlement_month: newMonth,
+        shop: data.shop || prev.shop,
+        item: data.item || prev.item,
+        amount: data.amount || prev.amount,
+      }));
     } catch (err) {
       // AnalyzeReceiptはサーバー内部のエラーをそのまま返すことがあるため、詳細は表示しない
       handleApiError(err, "解析に失敗しました。手動で入力してください。");
@@ -86,6 +117,8 @@ export default function Register() {
       toast.error("金額は1円以上にしてください");
       return;
     }
+
+    if (!(await checkMonthAvailable(formData.settlement_month))) return;
 
     setLoading(true);
     try {
@@ -178,9 +211,11 @@ export default function Register() {
               <Input
                 type="date"
                 value={formData.date}
-                onChange={(e) => {
+                onChange={async (e) => {
                   const newDate = e.target.value;
-                  setFormData({...formData, date: newDate, settlement_month: newDate.slice(0, 7)});
+                  const newMonth = newDate.slice(0, 7);
+                  if (!(await checkMonthAvailable(newMonth))) return;
+                  setFormData({...formData, date: newDate, settlement_month: newMonth});
                 }}
                 required
               />
@@ -190,7 +225,11 @@ export default function Register() {
               <Input
                 type="month"
                 value={formData.settlement_month}
-                onChange={(e) => setFormData({...formData, settlement_month: e.target.value})}
+                onChange={async (e) => {
+                  const newMonth = e.target.value;
+                  if (!(await checkMonthAvailable(newMonth))) return;
+                  setFormData({...formData, settlement_month: newMonth});
+                }}
                 required
               />
             </div>
